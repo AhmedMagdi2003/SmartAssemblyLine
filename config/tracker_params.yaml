@@ -1,0 +1,23 @@
+model:
+  weights_path: "models/best.pt"
+  tracker_config: "botsort.yaml"
+  confidence: 0.6
+
+roi:
+  # Polygon points calibrated from ROICalibration.py
+  polygon: [[42, 302], [353, 261], [1272, 557], [771, 692]]
+  finish_line_y: 400
+
+filters:
+  min_box_area: 8000
+  min_lifespan_sec: 1.0
+shifts:
+  - name: "Morning_Shift"
+    start_hour: 6
+    end_hour: 14
+  - name: "Evening_Shift"
+    start_hour: 14
+    end_hour: 22
+  - name: "Night_Shift"
+    start_hour: 22
+    end_hour: 6

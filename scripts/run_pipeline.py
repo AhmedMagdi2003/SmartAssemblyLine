@@ -1,5 +1,6 @@
 import cv2
 from src.core.tracking import AssemblyLineTracker
+
 def main():
     tracker = AssemblyLineTracker(config_path="config/tracker_params.yaml")
     cap = cv2.VideoCapture('data/videos/conveyor.mp4')

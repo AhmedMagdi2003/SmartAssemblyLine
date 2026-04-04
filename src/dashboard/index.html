@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Assembly | Live Feed</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent: #10b981;
+            --danger: #ef4444;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 20px;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--card-bg);
+        }
+        .status-badge {
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: bold;
+            background-color: var(--danger);
+        }
+        .status-badge.connected {
+            background-color: var(--accent);
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .card {
+            background-color: var(--card-bg);
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        .card h3 {
+            margin: 0 0 10px 0;
+            color: var(--text-muted);
+            font-size: 14px;
+            text-transform: uppercase;
+        }
+        .card .value {
+            font-size: 32px;
+            font-weight: bold;
+        }
+        .log-container {
+            background-color: var(--card-bg);
+            border-radius: 10px;
+            padding: 20px;
+            height: 400px;
+            overflow-y: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            text-align: left;
+            padding: 12px;
+            border-bottom: 1px solid #334155;
+        }
+        th { color: var(--text-muted); }
+        .row-enter {
+            animation: fadeIn 0.5s ease-out;
+            background-color: rgba(16, 185, 129, 0.1);
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h2>Smart Assembly Line Diagnostics</h2>
+        <div id="conn-status" class="status-badge">DISCONNECTED</div>
+    </div>
+
+    <div class="grid">
+        <div class="card">
+            <h3>Current Shift</h3>
+            <div id="kpi-shift" class="value">Waiting...</div>
+        </div>
+        <div class="card">
+            <h3>Shift Total</h3>
+            <div id="kpi-total" class="value">0</div>
+        </div>
+        <div class="card">
+            <h3>Avg Transit Time</h3>
+            <div id="kpi-time" class="value">0.0s</div>
+        </div>
+        <div class="card">
+            <h3>Last Angle</h3>
+            <div id="kpi-angle" class="value">0°</div>
+        </div>
+    </div>
+
+    <div class="log-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>Box ID</th>
+                    <th>Transit (s)</th>
+                    <th>Orientation (°)</th>
+                </tr>
+            </thead>
+            <tbody id="log-body">
+                </tbody>
+        </table>
+    </div>
+
+    <script>
+        // 1. Establish WebSocket Connection
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${wsProtocol}//${window.location.host}/ws`;
+        const socket = new WebSocket(wsUrl);
+
+        // UI Elements
+        const statusBadge = document.getElementById('conn-status');
+        const kpiShift = document.getElementById('kpi-shift');
+        const kpiTotal = document.getElementById('kpi-total');
+        const kpiTime = document.getElementById('kpi-time');
+        const kpiAngle = document.getElementById('kpi-angle');
+        const logBody = document.getElementById('log-body');
+
+        // State for calculating averages
+        let totalTime = 0;
+        let boxCount = 0;
+
+        // 2. Connection Lifecycle Events
+        socket.onopen = () => {
+            statusBadge.textContent = "CONNECTED (LIVE)";
+            statusBadge.classList.add("connected");
+        };
+
+        socket.onclose = () => {
+            statusBadge.textContent = "DISCONNECTED";
+            statusBadge.classList.remove("connected");
+        };
+
+        // 3. Handling Incoming Data
+        socket.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            
+            // Update KPIs
+            boxCount = data.shift_count;
+            totalTime += data.transit_time_sec;
+            
+            kpiShift.textContent = data.shift.replace("_", " ");
+            kpiTotal.textContent = boxCount;
+            kpiTime.textContent = (totalTime / boxCount).toFixed(2) + "s";
+            kpiAngle.textContent = data.orientation_deg + "°";
+
+            // Create new table row
+            const timeString = new Date(data.timestamp_iso).toLocaleTimeString();
+            const row = document.createElement('tr');
+            row.className = 'row-enter';
+            
+            row.innerHTML = `
+                <td>${timeString}</td>
+                <td><strong>${data.uuid}</strong></td>
+                <td>${data.transit_time_sec.toFixed(2)}</td>
+                <td style="color: ${Math.abs(data.orientation_deg) > 15 ? '#ef4444' : '#10b981'}">
+                    ${data.orientation_deg}°
+                </td>
+            `;
+
+            // Prepend to top of table
+            logBody.insertBefore(row, logBody.firstChild);
+
+            // Keep table from growing infinitely (keep last 50)
+            if (logBody.children.length > 50) {
+                logBody.removeChild(logBody.lastChild);
+            }
+
+            // Remove the highlight animation class after it plays
+            setTimeout(() => {
+                row.classList.remove('row-enter');
+            }, 500);
+        };
+    </script>
+</body>
+</html>

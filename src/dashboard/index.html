@@ -151,11 +151,21 @@
         // --- 2. WEBSOCKET & DATA HANDLING ---
         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const socket = new WebSocket(`${wsProtocol}//${window.location.host}/ws`);
-        let totalTime = 0, boxCount = 0;
+        let totalTime = 0, boxCount = 0, activeShift = null;
 
         socket.onopen = () => {
             document.getElementById('conn-status').textContent = "CONNECTED (LIVE)";
             document.getElementById('conn-status').classList.add("connected");
+        };
+
+        socket.onerror = () => {
+            document.getElementById('conn-status').textContent = "CONNECTION ERROR";
+            document.getElementById('conn-status').classList.remove("connected");
+        };
+
+        socket.onclose = () => {
+            document.getElementById('conn-status').textContent = "DISCONNECTED";
+            document.getElementById('conn-status').classList.remove("connected");
         };
 
         socket.onmessage = (event) => {
@@ -164,6 +174,10 @@
             const time = new Date(data.timestamp_iso);
 
             // Update KPIs
+            if (activeShift !== data.shift) {
+                activeShift = data.shift;
+                totalTime = 0;
+            }
             boxCount = data.shift_count;
             totalTime += data.transit_time_sec;
             document.getElementById('kpi-shift').textContent = data.shift.replace("_", " ");

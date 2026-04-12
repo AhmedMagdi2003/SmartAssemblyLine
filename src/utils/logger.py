@@ -1,34 +1,50 @@
-import paho.mqtt.client as mqtt
 import json
 import csv
-import os
+from pathlib import Path
+
+try:
+    import paho.mqtt.client as mqtt
+except ImportError:
+    mqtt = None
 
 BROKER = "localhost"
 TOPIC = "factory/assembly/boxes"
-LOG_DIR = "../data/logs/"
+LOG_DIR = Path(__file__).resolve().parents[2] / "data" / "logs"
+FIELDNAMES = [
+    "uuid",
+    "yolo_session_id",
+    "timestamp_iso",
+    "shift",
+    "shift_count",
+    "transit_time_sec",
+    "orientation_deg",
+    "status",
+]
 
-os.makedirs(LOG_DIR, exist_ok=True)
+LOG_DIR.mkdir(parents=True, exist_ok=True)
 
-def handle_csv_logging(payload):
-    """Routes the incoming data to the correct shift's CSV file."""
+
+def get_log_path(payload, log_dir=LOG_DIR):
+    """Build the daily per-shift CSV path for a payload."""
     shift = payload.get("shift", "Unknown")
-    
-    # Extract just the date (YYYY-MM-DD) from the ISO timestamp
-    date_str = payload.get("timestamp_iso", "0000-00-00")[:10] 
-    
-    # Dynamic filename: e.g., shift_Morning_Shift_2026-04-03.csv
-    filename = os.path.join(LOG_DIR, f"shift_{shift}_{date_str}.csv")
-    
-    file_exists = os.path.isfile(filename)
-    
-    with open(filename, mode='a', newline='') as file:
-        writer = csv.DictWriter(file, fieldnames=payload.keys())
-        
-        # Write headers if it's the first box of the shift
+    date_str = payload.get("timestamp_iso", "0000-00-00")[:10]
+    return Path(log_dir) / f"shift_{shift}_{date_str}.csv"
+
+
+def handle_csv_logging(payload, log_dir=LOG_DIR):
+    """Routes the incoming data to the correct shift's CSV file."""
+    filename = get_log_path(payload, log_dir=log_dir)
+    filename.parent.mkdir(parents=True, exist_ok=True)
+    file_exists = filename.is_file()
+    row = {field: payload.get(field, "") for field in FIELDNAMES}
+
+    with filename.open(mode="a", newline="", encoding="utf-8") as file:
+        writer = csv.DictWriter(file, fieldnames=FIELDNAMES)
+
         if not file_exists:
             writer.writeheader()
-            
-        writer.writerow(payload)
+
+        writer.writerow(row)
         print(f"[SAVED] Box {payload['yolo_session_id']} -> {filename}")
 
 def on_message(client, userdata, msg):
@@ -47,6 +63,8 @@ def on_message(client, userdata, msg):
 
 if __name__ == "__main__":
     print(f"Starting Data Logger. Listening to {TOPIC}...")
+    if mqtt is None:
+        raise RuntimeError("paho-mqtt is not installed. Run `pip install -r requirements.txt` first.")
     client = mqtt.Client()
     client.on_message = on_message
     

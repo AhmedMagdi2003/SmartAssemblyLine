@@ -1,12 +1,12 @@
 import datetime
-import uuid
 
 class ProductionAnalytics:
-    def __init__(self, shift_config):
+    def __init__(self, shift_config, clock=None):
         self.shifts = shift_config
         self.current_shift = None
         self.shift_box_count = 0
         self.current_date = datetime.date.today()
+        self.clock = clock or datetime.datetime.now
 
     def _update_shift_status(self, now):
         """Determines the current shift and resets counters if a new shift starts."""
@@ -35,13 +35,13 @@ class ProductionAnalytics:
         """
         Generates a standardized dictionary payload ready for a time-series database.
         """
-        now = datetime.datetime.now()
+        now = self.clock()
         self._update_shift_status(now)
         
         self.shift_box_count += 1
 
-        # Create a professional, traceable ID: e.g., BOX-20260403-0322-Morning-0001
-        date_str = now.strftime("%Y%m%d-%H%M")
+        # Create a traceable ID: e.g., BOX-20260403-Morning_Shift-0001
+        date_str = now.strftime("%Y%m%d")
         unique_box_id = f"BOX-{date_str}-{self.current_shift}-{self.shift_box_count:04d}"
 
         payload = {

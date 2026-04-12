@@ -2,20 +2,30 @@ import cv2
 import numpy as np
 import time
 import yaml
-from ultralytics import YOLO
+from pathlib import Path
 from .orientation import calculate_box_angle
 from src.utils.analytics import ProductionAnalytics
 from src.comms.streamer import ProductionStreamer
+
+
 class AssemblyLineTracker:
-    def __init__(self, config_path="config/tracker_params.yaml"):
+    def __init__(
+        self,
+        config_path="config/tracker_params.yaml",
+        model=None,
+        analytics=None,
+        streamer=None,
+        time_fn=None,
+    ):
         """Initializes the tracker using parameters from a YAML config."""
-        with open(config_path, 'r') as file:
+        self.config_path = self._resolve_path(config_path)
+        with open(self.config_path, 'r', encoding="utf-8") as file:
             self.config = yaml.safe_load(file)
         
         # Initialize Model
-        self.model = YOLO(self.config['model']['weights_path'])
+        self.model = model or self._build_model()
         self.conf = self.config['model']['confidence']
-        self.tracker = self.config['model']['tracker_config']
+        self.tracker = str(self._resolve_path(self.config['model']['tracker_config']))
         
         # Extract ROI and constraints
         self.belt_polygon = np.array(self.config['roi']['polygon'], np.int32)
@@ -29,9 +39,35 @@ class AssemblyLineTracker:
         self.total_boxes_counted = 0
 
         # Initial Analytics
-        self.analytics = ProductionAnalytics(self.config['shifts'])
-        self.streamer = ProductionStreamer()
-    def process_frame(self, frame, draw_annotations=True):
+        self.analytics = analytics or ProductionAnalytics(self.config['shifts'])
+        self.streamer = streamer or ProductionStreamer()
+        self.time_fn = time_fn or time.monotonic
+
+    def _resolve_path(self, candidate):
+        candidate_path = Path(candidate)
+        if candidate_path.is_absolute() and candidate_path.exists():
+            return candidate_path
+
+        search_roots = [
+            Path.cwd(),
+            self.config_path.parent,
+            Path(__file__).resolve().parents[2],
+            Path(__file__).resolve().parents[2] / "config",
+        ]
+        for root in search_roots:
+            resolved = (root / candidate_path).resolve()
+            if resolved.exists():
+                return resolved
+
+        return candidate_path
+
+    def _build_model(self):
+        from ultralytics import YOLO
+
+        weights_path = str(self._resolve_path(self.config['model']['weights_path']))
+        return YOLO(weights_path)
+
+    def process_frame(self, frame, draw_annotations=True, frame_timestamp=None):
         """
         Processes a single frame. 
         Returns: (annotated_frame, list_of_active_boxes_with_metadata)
@@ -71,9 +107,12 @@ class AssemblyLineTracker:
 
             # 3. Lifespan & Counting Logic
             if track_id not in self.box_entry_times:
-                self.box_entry_times[track_id] = time.time()
+                self.box_entry_times[track_id] = (
+                    self.time_fn() if frame_timestamp is None else frame_timestamp
+                )
             
-            lifespan = time.time() - self.box_entry_times[track_id]
+            current_time = self.time_fn() if frame_timestamp is None else frame_timestamp
+            lifespan = current_time - self.box_entry_times[track_id]
             angle = calculate_box_angle(frame, x1, y1, x2, y2)
             if cy > self.finish_line_y and track_id not in self.box_exit_times:
                 if lifespan > self.min_lifespan:

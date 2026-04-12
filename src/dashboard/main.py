@@ -1,10 +1,14 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
-import paho.mqtt.client as mqtt
 import asyncio
-import json
 import os
+from typing import List
+
+try:
+    import paho.mqtt.client as mqtt
+except ImportError:
+    mqtt = None
 
 app = FastAPI(title="Smart Assembly Line Dashboard")
 
@@ -20,7 +24,7 @@ app.add_middleware(
 # 1. The Connection Manager (Handles active web browsers)
 class ConnectionManager:
     def __init__(self):
-        self.active_connections: list[WebSocket] = []
+        self.active_connections: List[WebSocket] = []
 
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
@@ -34,12 +38,15 @@ class ConnectionManager:
 
     async def broadcast(self, message: str):
         """Pushes the JSON string to all open browser tabs."""
+        stale_connections = []
         for connection in self.active_connections:
             try:
                 await connection.send_text(message)
-            except RuntimeError:
-                # Handle dropped connections gracefully
-                pass
+            except Exception:
+                stale_connections.append(connection)
+
+        for connection in stale_connections:
+            self.disconnect(connection)
 
 manager = ConnectionManager()
 mqtt_loop_ref = None  # Will hold our main asyncio loop
@@ -68,6 +75,11 @@ async def get_dashboard():
 async def startup_event():
     global mqtt_loop_ref
     mqtt_loop_ref = asyncio.get_running_loop() # Capture the async loop
+
+    if mqtt is None:
+        print("[WARNING] paho-mqtt is not installed. Dashboard will run without live MQTT data.")
+        app.state.mqtt_client = None
+        return
     
     # Initialize MQTT
     app.state.mqtt_client = mqtt.Client()
@@ -83,8 +95,10 @@ async def startup_event():
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    app.state.mqtt_client.loop_stop()
-    app.state.mqtt_client.disconnect()
+    client = getattr(app.state, "mqtt_client", None)
+    if client is not None:
+        client.loop_stop()
+        client.disconnect()
 
 # 4. The WebSocket Endpoint
 @app.websocket("/ws")
@@ -92,7 +106,6 @@ async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
     try:
         while True:
-            # Keep the connection alive (we only send, we don't expect to receive)
-            await websocket.receive_text()
+            await websocket.receive()
     except WebSocketDisconnect:
         manager.disconnect(websocket)

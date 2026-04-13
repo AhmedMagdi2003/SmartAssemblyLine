@@ -1,0 +1,6 @@
+Collecting SQLAlchemy
+  Downloading sqlalchemy-2.0.49-cp38-cp38-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (9.6 kB)
+Requirement already satisfied: typing-extensions>=4.6.0 in /home/amg/miniconda3/envs/torch/lib/python3.8/site-packages (from SQLAlchemy) (4.12.2)
+Collecting greenlet>=1 (from SQLAlchemy)
+  Using cached greenlet-3.1.1-cp38-cp38-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl.metadata (3.8 kB)
+Downloading sqlalchemy-2.0.49-cp38-cp38-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (3.3 MB)

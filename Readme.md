@@ -18,14 +18,14 @@
 ## Overview
 
 Smart Assembly Line is a modular edge-to-analytics system built for packing-line monitoring.
-It detects cartons with YOLOv8, tracks them with persistent IDs, measures carton orientation, publishes production events over MQTT, stores shift-based CSV logs, and streams live telemetry into a browser dashboard.
+It detects cartons with YOLOv8, tracks them with persistent IDs, measures carton orientation, publishes production events over MQTT, stores events in PostgreSQL, keeps CSV files as a backup trail, and streams live telemetry into a browser dashboard.
 
 The project is designed around separation of concerns:
 
 - The vision node handles detection, ROI filtering, tracking, timing, and event generation.
 - MQTT decouples the edge pipeline from downstream logging and dashboards.
-- The logger writes structured shift files for historical analysis.
-- The FastAPI dashboard bridges MQTT into WebSocket updates for live KPI monitoring.
+- The logger persists events into PostgreSQL and mirrors them into CSV as a backup.
+- The FastAPI dashboard serves both live WebSocket updates and database-backed history/API endpoints.
 
 ## What It Does
 
@@ -35,8 +35,9 @@ The project is designed around separation of concerns:
 - Triggers exactly one completion event per carton after it crosses the finish line.
 - Generates structured payloads with UUID, timestamp, shift, count, transit time, and angle.
 - Streams live events to `factory/assembly/boxes` over MQTT.
-- Appends daily shift-specific CSV logs under `data/logs/`.
-- Displays live KPIs and charts in a web dashboard using WebSockets and Plotly.
+- Stores carton events in PostgreSQL using SQLAlchemy and Alembic-managed schema.
+- Appends daily shift-specific CSV logs under `data/logs/` as a backup/export path.
+- Displays live KPIs and charts in a web dashboard using FastAPI, WebSockets, Plotly, and database-backed API endpoints.
 
 ## System Flow
 
@@ -53,9 +54,9 @@ ROI Filter + Size Filter + Finish-Line Trigger
 Orientation + Transit Time + Shift Analytics
         |
         v
-MQTT Publish  --->  CSV Logger
+MQTT Publish  --->  DB Logger + CSV Backup
         |
-        +------->  FastAPI MQTT Bridge ---> WebSocket ---> Live Dashboard
+        +------->  FastAPI API + MQTT Bridge ---> WebSocket ---> Live Dashboard
 ```
 
 ## Features
@@ -68,8 +69,10 @@ MQTT Publish  --->  CSV Logger
 | Event Triggering | One-time payload generation after finish-line crossing |
 | Shift Analytics | Auto shift detection and per-shift counters |
 | MQTT Streaming | Non-blocking telemetry publishing |
-| CSV Logging | Daily, shift-aware structured event logs |
-| Live Dashboard | Browser KPI cards, event table, and Plotly charts |
+| PostgreSQL Storage | Persistent carton event history using SQLAlchemy |
+| Alembic Migrations | Versioned schema management for local and cloud deployment |
+| CSV Backup | Daily, shift-aware structured backup logs |
+| Live Dashboard | Browser KPI cards, database-backed history, event table, and Plotly charts |
 
 ## Project Structure
 
@@ -83,8 +86,11 @@ SmartAssemblyLine/
 │   ├── logs/
 │   ├── test_tmp/
 │   └── videos/
+├── deployment/
+│   └── docker-compose.db.yml
 ├── models/
 ├── scripts/
+│   ├── init_db.py
 │   ├── run_calibration.py
 │   ├── run_pipeline.py
 │   └── train_model.py
@@ -94,6 +100,13 @@ SmartAssemblyLine/
 │   ├── core/
 │   │   ├── orientation.py
 │   │   └── tracking.py
+│   ├── db/
+│   │   ├── base.py
+│   │   ├── bootstrap.py
+│   │   ├── models.py
+│   │   ├── repositories.py
+│   │   ├── session.py
+│   │   └── settings.py
 │   ├── dashboard/
 │   │   ├── index.html
 │   │   └── main.py
@@ -101,6 +114,10 @@ SmartAssemblyLine/
 │       ├── analytics.py
 │       ├── geometry.py
 │       └── logger.py
+├── alembic/
+│   └── versions/
+├── alembic.ini
+├── .env.example
 ├── tests/
 ├── requirements.txt
 └── Readme.md
@@ -116,6 +133,9 @@ SmartAssemblyLine/
 - FastAPI
 - Uvicorn
 - Plotly.js
+- SQLAlchemy
+- Alembic
+- PostgreSQL / pgvector
 - Mosquitto MQTT Broker
 
 ## Setup
@@ -128,6 +148,13 @@ cd SmartAssemblyLine
 ```
 
 ### 2. Create and activate a virtual environment
+
+Linux / WSL:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+```
 
 Windows PowerShell:
 
@@ -142,13 +169,33 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-If you plan to use the live dashboard and MQTT pipeline, make sure these packages are installed successfully:
+This installs the full runtime stack, including:
 
-- `fastapi`
-- `uvicorn`
-- `paho-mqtt`
+- FastAPI
+- Uvicorn
+- Paho MQTT
+- SQLAlchemy
+- Alembic
+- psycopg2-binary
+- python-dotenv
 
-### 4. Prepare required assets
+### 4. Create the environment file
+
+Copy the example file:
+
+```bash
+cp .env.example .env
+```
+
+Default `.env` content:
+
+```env
+DATABASE_URL=postgresql://smartassembly:smartassembly@localhost:5433/smart_assembly
+```
+
+The app auto-loads `.env` from the project root, so you do not need to export the database URL manually in every terminal.
+
+### 5. Prepare required assets
 
 Before running the project, confirm that these files exist:
 
@@ -172,88 +219,75 @@ You can change:
 - minimum lifespan
 - shift schedule
 
-## How To Run
+## Open And Run The Project
 
-This section shows the exact order to run the full project from the `SmartAssemblyLine` directory in the VS Code terminal.
+This is the recommended practical flow for VS Code, WSL, or Linux terminals.
 
-### Terminal 1. Open the project directory
-
-If you are not already inside the project folder:
+### Terminal 1. Open the project
 
 ```bash
 cd /mnt/d/Machine_Learning/Vision/SmartAssemblyLine
-```
-
-If you are using a Python environment, activate it first.
-
-Example:
-
-```bash
 conda activate torch
 ```
 
-### Terminal 2. Install dependencies
-
-Run this once if the environment is not prepared yet:
+### Terminal 2. Start PostgreSQL in Docker
 
 ```bash
-pip install -r requirements.txt
+docker compose -f deployment/docker-compose.db.yml up -d
 ```
 
-If needed, install the live-system packages explicitly:
-
-```bash
-pip install fastapi uvicorn paho-mqtt
-```
-
-### Terminal 3. Check required files
-
-Make sure these files exist before starting:
+This starts a local PostgreSQL container with:
 
 ```text
-models/best.pt
-data/videos/conveyor.mp4
-config/tracker_params.yaml
-config/botsort.yaml
+host: localhost
+port: 5433
+database: smart_assembly
+user: smartassembly
+password: smartassembly
 ```
 
-### Terminal 4. Start the MQTT broker
+### Terminal 3. Apply database migrations
 
-Run:
+```bash
+alembic upgrade head
+```
+
+### Terminal 4. Start Mosquitto
 
 ```bash
 mosquitto
 ```
 
-If you see:
+If you see `Address already in use`, Mosquitto is already running on port `1883`. That is fine. Leave it and continue.
 
-```text
-Error: Address already in use
-```
+### Terminal 5. Start the logger
 
-that usually means Mosquitto is already running on port `1883`. In that case, do not start another broker. Just leave it and continue to the next step.
-
-### Terminal 5. Start the CSV logger
-
-Open a new VS Code terminal in the same project directory and run:
+Open a new terminal:
 
 ```bash
 cd /mnt/d/Machine_Learning/Vision/SmartAssemblyLine
+conda activate torch
 python src/utils/logger.py
 ```
 
-The logger waits for incoming MQTT payloads and writes shift CSV files into `data/logs/`.
+What it does:
 
-### Terminal 6. Start the dashboard server
+- subscribes to `factory/assembly/boxes`
+- inserts each new event into PostgreSQL
+- writes the same event to CSV as a backup
+- skips duplicate UUIDs
 
-Open another new terminal and run:
+### Terminal 6. Start the dashboard
+
+Open another terminal:
 
 ```bash
 cd /mnt/d/Machine_Learning/Vision/SmartAssemblyLine
+conda activate torch
 uvicorn src.dashboard.main:app --reload
 ```
 
-Then open this address in your browser:
+Then open:
 
 ```text
 http://127.0.0.1:8000
@@ -261,27 +295,27 @@ http://127.0.0.1:8000
 
 ### Terminal 7. Start the vision pipeline
 
-Open one more terminal and run:
+Open another terminal:
 
 ```bash
 cd /mnt/d/Machine_Learning/Vision/SmartAssemblyLine
+conda activate torch
 python scripts/run_pipeline.py
 ```
 
-This starts the YOLO tracking pipeline on the sample conveyor video.
+### Full startup order
 
-## Expected Run Order
+Use this order every time:
 
-For the full system, always use this order:
-
-1. Open the `SmartAssemblyLine` directory.
-2. Activate your Python environment.
-3. Install dependencies if needed.
-4. Start Mosquitto, or confirm it is already running on port `1883`.
-5. Start `python src/utils/logger.py`.
-6. Start `uvicorn src.dashboard.main:app --reload`.
-7. Open `http://127.0.0.1:8000`.
-8. Start `python scripts/run_pipeline.py`.
+1. Open project folder
+2. Activate environment
+3. Start Docker Postgres
+4. Run `alembic upgrade head`
+5. Start Mosquitto
+6. Start `python src/utils/logger.py`
+7. Start `uvicorn src.dashboard.main:app --reload`
+8. Open `http://127.0.0.1:8000`
+9. Start `python scripts/run_pipeline.py`
 
 ## What You Should See
 
@@ -295,11 +329,13 @@ For the full system, always use this order:
 
 ### In the logger terminal
 
+- messages like `[DB] Inserted payload BOX-...`
 - messages like `[SAVED] Box 7 -> data/logs/shift_Morning_Shift_YYYY-MM-DD.csv`
 
 ### In the browser dashboard
 
 - dashboard status changes to connected
+- existing history loads from PostgreSQL on page refresh
 - KPI cards update in real time
 - orientation scatter plot updates
 - transit-time histogram grows
@@ -326,6 +362,152 @@ python scripts/run_pipeline.py
 ```
 
 Run them in separate terminals.
+
+## Database Setup
+
+The project is now PostgreSQL-only.
+
+### Docker Postgres
+
+The project now includes a Docker Compose file that uses:
+
+```text
+pgvector/pgvector:0.8.2-pg17
+```
+
+Start it with:
+
+```bash
+docker compose -f deployment/docker-compose.db.yml up -d
+```
+
+That container exposes:
+
+```text
+host: localhost
+port: 5433
+database: smart_assembly
+user: smartassembly
+password: smartassembly
+```
+
+To make the app use that container, set:
+
+```bash
+export SMART_ASSEMBLY_DB_BACKEND=postgres
+```
+
+Or set `DATABASE_URL` directly:
+
+```bash
+export DATABASE_URL=postgresql://smartassembly:smartassembly@localhost:5433/smart_assembly
+```
+
+The project also supports a local `.env` file. A ready-to-edit example is included:
+
+```text
+.env.example
+```
+
+Copy it to `.env` and edit if needed:
+
+```bash
+cp .env.example .env
+```
+
+Important:
+
+- SQLite is no longer supported by the project
+- the app now auto-loads `.env` from the project root
+- every terminal that runs the app will use the same database config as long as `.env` is present
+- if neither is set, the app now fails fast instead of silently falling back to a local file
+
+### Initialize the database schema
+
+From the project root, run:
+
+```bash
+python scripts/init_db.py
+```
+
+This initializes the schema against the configured PostgreSQL database.
+
+### Run Alembic migrations
+
+To apply all tracked schema migrations:
+
+```bash
+alembic upgrade head
+```
+
+If you are using the Docker database, make sure the container is already running before this step.
+
+### Create a future migration
+
+When you change models later, create a new migration with:
+
+```bash
+alembic revision --autogenerate -m "describe your change"
+```
+
+## API Endpoints
+
+Once the dashboard server is running, these endpoints are available:
+
+### Event endpoints
+
+- `GET /api/events?limit=10`
+- `GET /api/events/latest`
+
+Example:
+
+```bash
+curl http://127.0.0.1:8000/api/events?limit=10
+curl http://127.0.0.1:8000/api/events/latest
+```
+
+### KPI endpoints
+
+- `GET /api/kpis/current`
+- `GET /api/stats/shifts`
+
+Example:
+
+```bash
+curl http://127.0.0.1:8000/api/kpis/current
+curl http://127.0.0.1:8000/api/stats/shifts
+```
+
+### Chart endpoints
+
+- `GET /api/charts/overview?limit=50`
+
+Example:
+
+```bash
+curl http://127.0.0.1:8000/api/charts/overview?limit=10
+```
+
+## Verify The Data Flow
+
+If everything is running, verify it in this order:
+
+1. Logger prints `[DB] Inserted payload ...`
+2. Postgres contains rows in `box_events`
+3. FastAPI endpoints return JSON data
+4. Dashboard shows both history and live updates
+
+To inspect Postgres directly:
+
+```bash
+docker exec -it smart-assembly-db psql -U smartassembly -d smart_assembly
+```
+
+Then run:
+
+```sql
+SELECT * FROM box_events ORDER BY id DESC LIMIT 10;
+```
 
 ## Output Files
 
@@ -386,9 +568,10 @@ The tests cover:
 
 - payload generation and shift reset logic
 - orientation estimation behavior
+- database settings and repository logic
 - CSV logging
 - tracker filtering and one-shot counting behavior
-- dashboard template presence checks
+- dashboard template/API bootstrap checks
 
 ## Troubleshooting
 
@@ -398,10 +581,25 @@ The tests cover:
 - make sure `paho-mqtt` is installed
 - confirm the topic is `factory/assembly/boxes`
 
+### FastAPI endpoints show empty data
+
+- make sure `python src/utils/logger.py` is running
+- make sure the logger prints `[DB] Inserted payload ...`
+- verify Postgres contains rows in `box_events`
+- make sure the dashboard server is started from the project root so `.env` is loaded
+- call `curl http://127.0.0.1:8000/api/events?limit=10` to confirm API data directly
+
 ### Dashboard does not start
 
 - install `fastapi` and `uvicorn`
 - run `uvicorn src.dashboard.main:app --reload`
+
+### Database connection fails
+
+- make sure Docker Postgres is running on `localhost:5433`
+- make sure `.env` exists in the project root
+- verify `DATABASE_URL` inside `.env`
+- run `alembic upgrade head`
 
 ### Pipeline does not detect anything
 
@@ -420,7 +618,9 @@ The tests cover:
 
 - The project is built around modular communication, so each layer can be tested independently.
 - The vision node can run without the dashboard.
-- The logger and dashboard depend on MQTT if you want live telemetry.
+- The logger depends on MQTT and PostgreSQL.
+- The dashboard now supports both live MQTT updates and database-backed historical bootstrap.
+- CSV output is kept as a temporary backup path beside database persistence.
 - The current implementation is focused on analytics and monitoring, not actuator control.
 
 ## License

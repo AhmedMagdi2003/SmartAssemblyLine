@@ -3,7 +3,7 @@ from pathlib import Path
 import unittest
 import uuid
 
-from src.utils.logger import FIELDNAMES, get_log_path, handle_csv_logging
+from src.utils.logger import FIELDNAMES, get_log_path, handle_csv_logging, persist_payload
 
 TEMP_ROOT = Path(__file__).resolve().parents[1] / "data" / "test_tmp"
 TEMP_ROOT.mkdir(parents=True, exist_ok=True)
@@ -43,6 +43,62 @@ class CsvLoggerTests(unittest.TestCase):
         with log_path.open(encoding="utf-8") as handle:
             header = handle.readline().strip().split(",")
             self.assertEqual(header, FIELDNAMES)
+
+    def test_persist_payload_writes_csv_after_successful_db_insert(self):
+        calls = []
+
+        def fake_db_save(payload):
+            calls.append(("db", payload["uuid"]))
+            return True
+
+        def fake_csv_save(payload):
+            calls.append(("csv", payload["uuid"]))
+
+        result = persist_payload(
+            {
+                "uuid": "BOX-1",
+                "yolo_session_id": 1,
+                "timestamp_iso": "2026-04-13T00:10:00",
+                "shift": "Morning_Shift",
+                "shift_count": 1,
+                "transit_time_sec": 1.1,
+                "orientation_deg": 5.0,
+                "status": "COMPLETED",
+            },
+            save_to_db=fake_db_save,
+            csv_handler=fake_csv_save,
+        )
+
+        self.assertEqual(result, "inserted")
+        self.assertEqual(calls, [("db", "BOX-1"), ("csv", "BOX-1")])
+
+    def test_persist_payload_skips_csv_for_duplicate_db_event(self):
+        calls = []
+
+        def fake_db_save(payload):
+            calls.append(("db", payload["uuid"]))
+            return False
+
+        def fake_csv_save(payload):
+            calls.append(("csv", payload["uuid"]))
+
+        result = persist_payload(
+            {
+                "uuid": "BOX-1",
+                "yolo_session_id": 1,
+                "timestamp_iso": "2026-04-13T00:10:00",
+                "shift": "Morning_Shift",
+                "shift_count": 1,
+                "transit_time_sec": 1.1,
+                "orientation_deg": 5.0,
+                "status": "COMPLETED",
+            },
+            save_to_db=fake_db_save,
+            csv_handler=fake_csv_save,
+        )
+
+        self.assertEqual(result, "duplicate")
+        self.assertEqual(calls, [("db", "BOX-1")])
 
 
 if __name__ == "__main__":

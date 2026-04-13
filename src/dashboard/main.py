@@ -10,6 +10,21 @@ try:
 except ImportError:
     mqtt = None
 
+try:
+    from src.db.repositories import (
+        get_chart_overview,
+        get_current_kpis,
+        get_latest_box_event,
+        get_shift_summary,
+        list_recent_box_events,
+    )
+except Exception:
+    get_chart_overview = None
+    get_current_kpis = None
+    get_latest_box_event = None
+    get_shift_summary = None
+    list_recent_box_events = None
+
 app = FastAPI(title="Smart Assembly Line Dashboard")
 
 # Allow the frontend to connect from anywhere during development
@@ -70,6 +85,56 @@ async def get_dashboard():
     html_path = os.path.join(os.path.dirname(__file__), "index.html")
     with open(html_path, "r") as f:
         return HTMLResponse(f.read())
+
+
+@app.get("/api/events")
+async def get_recent_events(limit: int = 50):
+    if list_recent_box_events is None:
+        return {"events": [], "source": "unavailable"}
+
+    events = list_recent_box_events(limit=max(1, min(limit, 500)))
+    events.reverse()
+    return {"events": events, "source": "database"}
+
+
+@app.get("/api/events/latest")
+async def get_latest_event():
+    if get_latest_box_event is None:
+        return {"event": None, "source": "unavailable"}
+
+    return {"event": get_latest_box_event(), "source": "database"}
+
+
+@app.get("/api/kpis/current")
+async def get_current_dashboard_kpis():
+    if get_current_kpis is None:
+        return {"kpis": None, "source": "unavailable"}
+
+    return {"kpis": get_current_kpis(), "source": "database"}
+
+
+@app.get("/api/stats/shifts")
+async def get_shift_stats(limit: int = 10):
+    if get_shift_summary is None:
+        return {"shifts": [], "source": "unavailable"}
+
+    return {"shifts": get_shift_summary(limit=max(1, min(limit, 100))), "source": "database"}
+
+
+@app.get("/api/charts/overview")
+async def get_chart_data(limit: int = 50):
+    if get_chart_overview is None:
+        return {
+            "orientation": [],
+            "transit": [],
+            "volume": [],
+            "source": "unavailable",
+        }
+
+    return {
+        **get_chart_overview(limit=max(1, min(limit, 500))),
+        "source": "database",
+    }
 # 3. Server Lifecycle (Starts/Stops MQTT safely)
 @app.on_event("startup")
 async def startup_event():

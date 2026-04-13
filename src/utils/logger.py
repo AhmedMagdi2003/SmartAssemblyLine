@@ -1,15 +1,27 @@
+from pathlib import Path
+import sys
 import json
 import csv
-from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 try:
     import paho.mqtt.client as mqtt
 except ImportError:
     mqtt = None
 
+DB_IMPORT_ERROR = None
+try:
+    from src.db.repositories import save_box_event
+except Exception as exc:
+    save_box_event = None
+    DB_IMPORT_ERROR = exc
+
 BROKER = "localhost"
 TOPIC = "factory/assembly/boxes"
-LOG_DIR = Path(__file__).resolve().parents[2] / "data" / "logs"
+LOG_DIR = PROJECT_ROOT / "data" / "logs"
 FIELDNAMES = [
     "uuid",
     "yolo_session_id",
@@ -47,24 +59,48 @@ def handle_csv_logging(payload, log_dir=LOG_DIR):
         writer.writerow(row)
         print(f"[SAVED] Box {payload['yolo_session_id']} -> {filename}")
 
+
+def persist_payload(payload, save_to_db=save_box_event, csv_handler=handle_csv_logging):
+    """
+    Save the payload to the database first, then mirror it to CSV as a backup.
+    Returns one of: inserted, duplicate, csv_only.
+    """
+    if save_to_db is None:
+        csv_handler(payload)
+        return "csv_only"
+
+    inserted = save_to_db(payload)
+    if inserted:
+        csv_handler(payload)
+        return "inserted"
+
+    print(f"[SKIP] Duplicate payload ignored: {payload.get('uuid', 'UNKNOWN_UUID')}")
+    return "duplicate"
+
 def on_message(client, userdata, msg):
     """Callback triggered every time a new box crosses the line."""
     try:
         payload = json.loads(msg.payload.decode('utf-8'))
-        
-        # Module 1: Save to CSV
-        handle_csv_logging(payload)
-        
-        # Module 2: (Future) Push to Cloud DB
-        # e.g., mongodb_client.insert_one(payload)
-        
+
+        result = persist_payload(payload)
+        if result == "inserted":
+            print(f"[DB] Inserted payload {payload['uuid']}")
+        elif result == "csv_only":
+            print(f"[DB] Database unavailable, kept CSV backup for {payload['uuid']}")
+
     except json.JSONDecodeError:
         print("[ERROR] Corrupted payload received.")
+    except ValueError as exc:
+        print(f"[ERROR] Invalid payload: {exc}")
+    except Exception as exc:
+        print(f"[ERROR] Failed to persist payload: {exc}")
 
 if __name__ == "__main__":
     print(f"Starting Data Logger. Listening to {TOPIC}...")
     if mqtt is None:
         raise RuntimeError("paho-mqtt is not installed. Run `pip install -r requirements.txt` first.")
+    if save_box_event is None and DB_IMPORT_ERROR is not None:
+        print(f"[WARNING] Database layer unavailable at startup: {DB_IMPORT_ERROR}")
     client = mqtt.Client()
     client.on_message = on_message
     

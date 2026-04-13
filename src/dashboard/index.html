@@ -141,7 +141,8 @@
         // State Arrays
         let scatterX = [], scatterY = [], scatterColors = [];
         let transitDataArray = [];
-        let sessionData = []; 
+        let sessionData = [];
+        let knownEventIds = new Set();
 
         // Initial Empty Plots
         Plotly.newPlot('plot-orientation', [{ x: [], y: [], mode: 'markers' }], layoutOrientation, {displayModeBar: false});
@@ -168,8 +169,73 @@
             document.getElementById('conn-status').classList.remove("connected");
         };
 
-        socket.onmessage = (event) => {
-            const data = JSON.parse(event.data);
+        async function loadCurrentKpis() {
+            try {
+                const response = await fetch('/api/kpis/current');
+                const payload = await response.json();
+                const kpis = payload.kpis;
+                if (!kpis || !kpis.current_shift) {
+                    return;
+                }
+
+                activeShift = kpis.current_shift;
+                boxCount = kpis.shift_volume;
+                totalTime = kpis.average_transit_time_sec * (boxCount || 0);
+                document.getElementById('kpi-shift').textContent = kpis.current_shift.replace("_", " ");
+                document.getElementById('kpi-total').textContent = kpis.shift_volume;
+                document.getElementById('kpi-time').textContent = `${kpis.average_transit_time_sec.toFixed(2)}s`;
+                document.getElementById('kpi-angle').textContent = `${kpis.last_angle_deg}°`;
+            } catch (error) {
+                console.warn('Could not load current KPI state', error);
+            }
+        }
+
+        async function loadChartOverview() {
+            try {
+                const response = await fetch('/api/charts/overview?limit=50');
+                const payload = await response.json();
+
+                const orientation = payload.orientation || [];
+                const transit = payload.transit || [];
+                const volume = payload.volume || [];
+
+                scatterX = orientation.map(point => new Date(point.timestamp_iso));
+                scatterY = orientation.map(point => point.orientation_deg);
+                scatterColors = orientation.map(point => point.color);
+                transitDataArray = [...transit];
+
+                Plotly.react('plot-orientation', [{
+                    x: [...scatterX],
+                    y: [...scatterY],
+                    mode: 'markers',
+                    marker: { size: 10, color: [...scatterColors] }
+                }], layoutOrientation);
+
+                Plotly.react('plot-transit', [{
+                    x: [...transitDataArray],
+                    type: 'histogram',
+                    marker: { color: '#3b82f6' },
+                    xbins: { start: 0, end: 20, size: 0.5 }
+                }], layoutTransit);
+
+                Plotly.react('plot-volume', [{
+                    x: volume.map(point => new Date(point.timestamp_iso)),
+                    y: volume.map(point => point.shift_count),
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    line: { color: '#10b981', width: 3 }
+                }], layoutVolume);
+            } catch (error) {
+                console.warn('Could not load chart overview', error);
+            }
+        }
+
+        function renderEvent(data, mode = 'live') {
+            if (!data || !data.uuid || knownEventIds.has(data.uuid)) {
+                return;
+            }
+
+            knownEventIds.add(data.uuid);
             sessionData.push(data);
             const time = new Date(data.timestamp_iso);
 
@@ -212,19 +278,55 @@
                 xbins: { start: 0, end: 20, size: 0.5 } 
             }], layoutTransit);
 
-            // --- C. Volume Line Update (extendTraces handles its own state) ---
-            Plotly.extendTraces('plot-volume', {
-                x: [[time]],
-                y: [[boxCount]]
-            }, [0], 50);
+            // --- C. Volume Line Update ---
+            if (mode === 'history') {
+                const recentEvents = sessionData.slice(-50);
+                Plotly.react('plot-volume', [{
+                    x: recentEvents.map(d => new Date(d.timestamp_iso)),
+                    y: recentEvents.map(d => d.shift_count),
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    line: { color: '#10b981', width: 3 }
+                }], layoutVolume);
+            } else {
+                Plotly.extendTraces('plot-volume', {
+                    x: [[time]],
+                    y: [[boxCount]]
+                }, [0], 50);
+            }
 
             // Update Table
             const row = `<tr><td>${time.toLocaleTimeString()}</td><td><strong>${data.uuid}</strong></td>
                          <td>${data.transit_time_sec.toFixed(2)}</td>
                          <td style="color:${dotColor}">${data.orientation_deg}°</td></tr>`;
             const tbody = document.getElementById('log-body');
-            tbody.insertAdjacentHTML('afterbegin', row);
+            if (mode === 'history') {
+                tbody.insertAdjacentHTML('beforeend', row);
+            } else {
+                tbody.insertAdjacentHTML('afterbegin', row);
+            }
             if(tbody.children.length > 20) tbody.lastElementChild.remove();
+        }
+
+        async function loadHistory() {
+            try {
+                const response = await fetch('/api/events?limit=50');
+                const payload = await response.json();
+                for (const event of payload.events || []) {
+                    renderEvent(event, 'history');
+                }
+            } catch (error) {
+                console.warn('Could not load historical events', error);
+            }
+        }
+
+        loadCurrentKpis();
+        loadChartOverview();
+        loadHistory();
+
+        socket.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            renderEvent(data, 'live');
         };
 
         // --- 3. CSV EXPORT ---

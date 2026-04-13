@@ -50,10 +50,13 @@ class AssemblyLineTracker:
 
         search_roots = [
             Path.cwd(),
-            self.config_path.parent,
             Path(__file__).resolve().parents[2],
             Path(__file__).resolve().parents[2] / "config",
         ]
+        config_path = getattr(self, "config_path", None)
+        if config_path is not None:
+            search_roots.insert(1, config_path.parent)
+
         for root in search_roots:
             resolved = (root / candidate_path).resolve()
             if resolved.exists():

@@ -27,6 +27,7 @@ FIELDNAMES = [
     "yolo_session_id",
     "timestamp_iso",
     "shift",
+    "shift_date",
     "shift_count",
     "transit_time_sec",
     "orientation_deg",
@@ -36,10 +37,24 @@ FIELDNAMES = [
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 
+def _infer_shift_file_date(payload):
+    shift_date = payload.get("shift_date")
+    if shift_date:
+        return str(shift_date)
+
+    uuid_value = str(payload.get("uuid", ""))
+    uuid_parts = uuid_value.split("-")
+    if len(uuid_parts) >= 4 and len(uuid_parts[1]) == 8 and uuid_parts[1].isdigit():
+        encoded_date = uuid_parts[1]
+        return f"{encoded_date[:4]}-{encoded_date[4:6]}-{encoded_date[6:]}"
+
+    return str(payload.get("timestamp_iso", "0000-00-00"))[:10]
+
+
 def get_log_path(payload, log_dir=LOG_DIR):
-    """Build the daily per-shift CSV path for a payload."""
+    """Build the operational shift CSV path for a payload."""
     shift = payload.get("shift", "Unknown")
-    date_str = payload.get("timestamp_iso", "0000-00-00")[:10]
+    date_str = _infer_shift_file_date(payload)
     return Path(log_dir) / f"shift_{shift}_{date_str}.csv"
 
 

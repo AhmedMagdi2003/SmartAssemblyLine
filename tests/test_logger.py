@@ -16,6 +16,7 @@ class CsvLoggerTests(unittest.TestCase):
             "yolo_session_id": 14,
             "timestamp_iso": "2026-04-04T08:15:00",
             "shift": "Morning_Shift",
+            "shift_date": "2026-04-04",
             "shift_count": 1,
             "transit_time_sec": 1.75,
             "orientation_deg": 7.5,
@@ -60,6 +61,7 @@ class CsvLoggerTests(unittest.TestCase):
                 "yolo_session_id": 1,
                 "timestamp_iso": "2026-04-13T00:10:00",
                 "shift": "Morning_Shift",
+                "shift_date": "2026-04-13",
                 "shift_count": 1,
                 "transit_time_sec": 1.1,
                 "orientation_deg": 5.0,
@@ -88,6 +90,7 @@ class CsvLoggerTests(unittest.TestCase):
                 "yolo_session_id": 1,
                 "timestamp_iso": "2026-04-13T00:10:00",
                 "shift": "Morning_Shift",
+                "shift_date": "2026-04-13",
                 "shift_count": 1,
                 "transit_time_sec": 1.1,
                 "orientation_deg": 5.0,
@@ -99,6 +102,22 @@ class CsvLoggerTests(unittest.TestCase):
 
         self.assertEqual(result, "duplicate")
         self.assertEqual(calls, [("db", "BOX-1")])
+
+    def test_csv_logging_uses_shift_date_for_night_shift_resume(self):
+        payload = {
+            "uuid": "BOX-20260404-Night_Shift-0051",
+            "yolo_session_id": 51,
+            "timestamp_iso": "2026-04-05T00:10:00",
+            "shift": "Night_Shift",
+            "shift_date": "2026-04-04",
+            "shift_count": 51,
+            "transit_time_sec": 1.1,
+            "orientation_deg": 5.0,
+            "status": "COMPLETED",
+        }
+
+        log_path = get_log_path(payload, log_dir=TEMP_ROOT)
+        self.assertEqual(log_path, TEMP_ROOT / "shift_Night_Shift_2026-04-04.csv")
 
 
 if __name__ == "__main__":

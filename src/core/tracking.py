@@ -42,6 +42,9 @@ class AssemblyLineTracker:
         self.analytics = analytics or ProductionAnalytics(self.config['shifts'])
         self.streamer = streamer or ProductionStreamer()
         self.time_fn = time_fn or time.monotonic
+        if hasattr(self.analytics, "sync_with_time"):
+            self.analytics.sync_with_time()
+            self.total_boxes_counted = getattr(self.analytics, "shift_box_count", self.total_boxes_counted)
 
     def _resolve_path(self, candidate):
         candidate_path = Path(candidate)
@@ -75,6 +78,10 @@ class AssemblyLineTracker:
         Processes a single frame. 
         Returns: (annotated_frame, list_of_active_boxes_with_metadata)
         """
+        if hasattr(self.analytics, "sync_with_time"):
+            self.analytics.sync_with_time()
+            self.total_boxes_counted = getattr(self.analytics, "shift_box_count", self.total_boxes_counted)
+
         results = self.model.track(
             frame, persist=True, conf=self.conf, 
             tracker=self.tracker, verbose=False

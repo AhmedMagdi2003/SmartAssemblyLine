@@ -14,6 +14,7 @@
             --accent: #10b981;
             --danger: #ef4444;
             --primary: #3b82f6;
+            --border: #334155;
         }
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -23,46 +24,175 @@
             padding: 20px;
         }
         .header {
-            display: flex; justify-content: space-between; align-items: center;
-            margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid var(--card-bg);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--card-bg);
         }
-        .header-controls { display: flex; gap: 15px; align-items: center; }
+        .header-controls {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .view-toggle {
+            display: inline-flex;
+            background-color: var(--card-bg);
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+        }
+        .toggle-btn {
+            background: transparent;
+            color: var(--text-muted);
+            border: none;
+            padding: 8px 14px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        .toggle-btn.active {
+            background-color: var(--primary);
+            color: white;
+        }
         .status-badge {
-            padding: 5px 12px; border-radius: 20px; font-size: 14px; font-weight: bold; background-color: var(--danger);
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: bold;
+            background-color: var(--danger);
         }
-        .status-badge.connected { background-color: var(--accent); }
-        .export-btn {
-            background-color: var(--primary); color: white; border: none; padding: 8px 16px; 
-            border-radius: 5px; font-size: 14px; font-weight: bold; cursor: pointer;
+        .status-badge.connected {
+            background-color: var(--accent);
         }
-        
-        /* KPI Grid */
+        .export-btn,
+        .history-btn {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .history-toolbar {
+            display: flex;
+            gap: 14px;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+            padding: 14px 16px;
+            background-color: var(--card-bg);
+            border-radius: 10px;
+        }
+        .history-toolbar.hidden {
+            display: none;
+        }
+        .history-toolbar label,
+        .history-toolbar span {
+            color: var(--text-muted);
+            font-size: 14px;
+            font-weight: 600;
+        }
+        .history-toolbar select {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 6px 10px;
+        }
+        .history-slider-wrap {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .history-slider-wrap input[type="range"] {
+            width: 180px;
+            accent-color: var(--primary);
+        }
+        .history-summary {
+            color: var(--text-muted);
+            font-size: 13px;
+        }
         .kpi-grid {
-            display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
         }
         .kpi-card {
-            background-color: var(--card-bg); padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            background-color: var(--card-bg);
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
         }
-        .kpi-card h3 { margin: 0 0 10px 0; color: var(--text-muted); font-size: 14px; text-transform: uppercase; }
-        .kpi-card .value { font-size: 32px; font-weight: bold; }
-
-        /* Chart Grid */
+        .kpi-card h3 {
+            margin: 0 0 10px 0;
+            color: var(--text-muted);
+            font-size: 14px;
+            text-transform: uppercase;
+        }
+        .kpi-card .value {
+            font-size: 32px;
+            font-weight: bold;
+        }
         .analytics-grid {
-            display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 350px 350px; gap: 20px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 350px 350px;
+            gap: 20px;
         }
         .chart-container {
-            background-color: var(--card-bg); border-radius: 10px; padding: 15px; position: relative;
+            background-color: var(--card-bg);
+            border-radius: 10px;
+            padding: 15px;
+            position: relative;
         }
         .chart-title {
-            position: absolute; top: 15px; left: 20px; color: var(--text-muted); font-size: 14px; 
-            font-weight: bold; text-transform: uppercase; z-index: 10;
+            position: absolute;
+            top: 15px;
+            left: 20px;
+            color: var(--text-muted);
+            font-size: 14px;
+            font-weight: bold;
+            text-transform: uppercase;
+            z-index: 10;
         }
-        
-        /* Compressed Table */
-        .table-container { overflow-y: auto; height: 300px; margin-top: 25px; }
-        table { width: 100%; border-collapse: collapse; font-size: 13px; }
-        th, td { text-align: left; padding: 8px; border-bottom: 1px solid #334155; }
-        th { color: var(--text-muted); position: sticky; top: 0; background: var(--card-bg); }
+        .table-container {
+            overflow-y: auto;
+            height: 300px;
+            margin-top: 25px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        th, td {
+            text-align: left;
+            padding: 8px;
+            border-bottom: 1px solid var(--border);
+            vertical-align: top;
+        }
+        th {
+            color: var(--text-muted);
+            position: sticky;
+            top: 0;
+            background: var(--card-bg);
+        }
+        @media (max-width: 900px) {
+            .analytics-grid {
+                grid-template-columns: 1fr;
+                grid-template-rows: repeat(4, 320px);
+            }
+            .header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+        }
     </style>
 </head>
 <body>
@@ -70,34 +200,52 @@
     <div class="header">
         <h2>Smart Assembly Analytics Suite</h2>
         <div class="header-controls">
+            <div class="view-toggle">
+                <button id="view-current-shift" class="toggle-btn active" onclick="setViewMode('current_shift')">Current Shift</button>
+                <button id="view-all-history" class="toggle-btn" onclick="setViewMode('all_history')">All History</button>
+            </div>
             <button class="export-btn" onclick="exportCSV()">Export Session CSV</button>
             <div id="conn-status" class="status-badge">DISCONNECTED</div>
         </div>
     </div>
 
+    <div id="history-toolbar" class="history-toolbar hidden">
+        <label for="history-unit">Period Unit</label>
+        <select id="history-unit" onchange="setHistoryUnit(this.value)">
+            <option value="days">Days</option>
+            <option value="months">Months</option>
+            <option value="years">Years</option>
+        </select>
+        <div class="history-slider-wrap">
+            <span id="history-range-min">1</span>
+            <input id="history-range" type="range" min="1" max="90" value="30" oninput="setHistoryRange(this.value)">
+            <span id="history-range-max">90</span>
+        </div>
+        <span id="history-range-label">Last 30 days</span>
+        <button class="history-btn" onclick="showFullHistory()">Full Range</button>
+        <span id="history-summary" class="history-summary"></span>
+    </div>
+
     <div class="kpi-grid">
-        <div class="kpi-card"><h3>Current Shift</h3><div id="kpi-shift" class="value">Waiting...</div></div>
-        <div class="kpi-card"><h3>Shift Volume</h3><div id="kpi-total" class="value">0</div></div>
-        <div class="kpi-card"><h3>Avg Transit</h3><div id="kpi-time" class="value">0.0s</div></div>
-        <div class="kpi-card"><h3>Last Angle</h3><div id="kpi-angle" class="value">0°</div></div>
+        <div class="kpi-card"><h3 id="kpi-label-a">Current Shift</h3><div id="kpi-a" class="value">Waiting...</div></div>
+        <div class="kpi-card"><h3 id="kpi-label-b">Shift Volume</h3><div id="kpi-b" class="value">0</div></div>
+        <div class="kpi-card"><h3 id="kpi-label-c">Avg Transit</h3><div id="kpi-c" class="value">0.0s</div></div>
+        <div class="kpi-card"><h3 id="kpi-label-d">Last Angle</h3><div id="kpi-d" class="value">0°</div></div>
     </div>
 
     <div class="analytics-grid">
         <div class="chart-container">
-            <div class="chart-title">Orientation Drift Control</div>
-            <div id="plot-orientation" style="width:100%; height:100%;"></div>
+            <div id="chart-title-a" class="chart-title">Orientation Drift Control</div>
+            <div id="plot-a" style="width:100%; height:100%;"></div>
         </div>
-        
         <div class="chart-container">
-            <div class="chart-title">Transit Time Distribution</div>
-            <div id="plot-transit" style="width:100%; height:100%;"></div>
+            <div id="chart-title-b" class="chart-title">Transit Time Distribution</div>
+            <div id="plot-b" style="width:100%; height:100%;"></div>
         </div>
-
         <div class="chart-container">
-            <div class="chart-title">Cumulative Shift Volume</div>
-            <div id="plot-volume" style="width:100%; height:100%;"></div>
+            <div id="chart-title-c" class="chart-title">Cumulative Shift Volume</div>
+            <div id="plot-c" style="width:100%; height:100%;"></div>
         </div>
-
         <div class="chart-container">
             <div class="chart-title">Raw Event Log</div>
             <div class="table-container">
@@ -110,236 +258,498 @@
     </div>
 
 <script>
-        // --- 1. PLOTLY INITIALIZATION & LAYOUTS ---
         const darkLayout = {
-            paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
-            font: { color: '#94a3b8' }, margin: { t: 40, b: 30, l: 40, r: 20 },
+            paper_bgcolor: 'rgba(0,0,0,0)',
+            plot_bgcolor: 'rgba(0,0,0,0)',
+            font: { color: '#94a3b8' },
+            margin: { t: 40, b: 50, l: 50, r: 20 },
             xaxis: { gridcolor: '#334155', zerolinecolor: '#334155' },
             yaxis: { gridcolor: '#334155', zerolinecolor: '#334155' }
         };
 
-        const layoutOrientation = {
+        const orientationLayout = {
             ...darkLayout,
             yaxis: { title: 'Angle (Degrees)', range: [-90, 90], gridcolor: '#334155' },
             shapes: [{
-                type: 'rect', y0: -15, y1: 15, x0: 0, x1: 1, xref: 'paper', yref: 'y',
-                fillcolor: 'rgba(16, 185, 129, 0.15)', line: { width: 0 }
+                type: 'rect',
+                y0: -15,
+                y1: 15,
+                x0: 0,
+                x1: 1,
+                xref: 'paper',
+                yref: 'y',
+                fillcolor: 'rgba(16, 185, 129, 0.15)',
+                line: { width: 0 }
             }]
         };
 
-        const layoutTransit = {
-            ...darkLayout, 
-            xaxis: { title: 'Seconds on Belt', range: [0, 15] }, 
-            yaxis: { title: 'Frequency' }
-        };
-
-        const layoutVolume = {
+        const histogramLayout = {
             ...darkLayout,
-            yaxis: { title: 'Total Boxes Counted', gridcolor: '#334155' }
+            xaxis: { title: 'Seconds on Belt', range: [0, 15], gridcolor: '#334155' },
+            yaxis: { title: 'Frequency', gridcolor: '#334155' }
         };
 
-        // State Arrays
-        let scatterX = [], scatterY = [], scatterColors = [];
-        let transitDataArray = [];
-        let sessionData = [];
-        let knownEventIds = new Set();
+        const lineLayout = {
+            ...darkLayout,
+            yaxis: { title: 'Count', gridcolor: '#334155' }
+        };
 
-        // Initial Empty Plots
-        Plotly.newPlot('plot-orientation', [{ x: [], y: [], mode: 'markers' }], layoutOrientation, {displayModeBar: false});
-        Plotly.newPlot('plot-transit', [{ x: [], type: 'histogram' }], layoutTransit, {displayModeBar: false});
-        Plotly.newPlot('plot-volume', [{ x: [], y: [], type: 'scatter', mode: 'lines+markers', line: { color: '#10b981', width: 3 } }], layoutVolume, {displayModeBar: false});
+        const historyRangeLimits = {
+            days: { min: 1, max: 90, default: 30 },
+            months: { min: 1, max: 24, default: 6 },
+            years: { min: 1, max: 5, default: 1 }
+        };
 
-        // --- 2. WEBSOCKET & DATA HANDLING ---
+        let rawEvents = [];
+        let displayedEvents = [];
+        let viewMode = 'current_shift';
+        let historyUnit = 'days';
+        let historyRangeValue = historyRangeLimits.days.default;
+        let historyUseFullRange = false;
+        let activeShift = null;
+        let activeShiftDate = null;
+
         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const socket = new WebSocket(`${wsProtocol}//${window.location.host}/ws`);
-        let totalTime = 0, boxCount = 0, activeShift = null;
 
-        socket.onopen = () => {
-            document.getElementById('conn-status').textContent = "CONNECTED (LIVE)";
-            document.getElementById('conn-status').classList.add("connected");
-        };
+        function resetPlots() {
+            Plotly.react('plot-a', [{ x: [], y: [], mode: 'markers' }], orientationLayout, {displayModeBar: false});
+            Plotly.react('plot-b', [{ x: [], type: 'histogram' }], histogramLayout, {displayModeBar: false});
+            Plotly.react('plot-c', [{ x: [], y: [], type: 'scatter', mode: 'lines+markers' }], lineLayout, {displayModeBar: false});
+        }
 
-        socket.onerror = () => {
-            document.getElementById('conn-status').textContent = "CONNECTION ERROR";
-            document.getElementById('conn-status').classList.remove("connected");
-        };
+        function clearDashboardState() {
+            rawEvents = [];
+            displayedEvents = [];
+            document.getElementById('log-body').innerHTML = '';
+            document.getElementById('history-summary').textContent = '';
+            resetPlots();
+        }
 
-        socket.onclose = () => {
-            document.getElementById('conn-status').textContent = "DISCONNECTED";
-            document.getElementById('conn-status').classList.remove("connected");
-        };
+        function updateViewToggleUi() {
+            document.getElementById('view-current-shift').classList.toggle('active', viewMode === 'current_shift');
+            document.getElementById('view-all-history').classList.toggle('active', viewMode === 'all_history');
+            document.getElementById('history-toolbar').classList.toggle('hidden', viewMode !== 'all_history');
+        }
+
+        function updateHistoryControlsUi() {
+            const limits = historyRangeLimits[historyUnit];
+            const slider = document.getElementById('history-range');
+            slider.min = limits.min;
+            slider.max = limits.max;
+            slider.value = historyRangeValue;
+            document.getElementById('history-range-min').textContent = limits.min;
+            document.getElementById('history-range-max').textContent = limits.max;
+            document.getElementById('history-unit').value = historyUnit;
+            document.getElementById('history-range-label').textContent = historyUseFullRange
+                ? 'Full available history'
+                : `Last ${historyRangeValue} ${historyUnit}`;
+        }
+
+        async function setViewMode(nextMode) {
+            if (viewMode === nextMode) {
+                return;
+            }
+            viewMode = nextMode;
+            updateViewToggleUi();
+            await bootstrapDashboard();
+        }
+
+        function setHistoryUnit(unit) {
+            historyUnit = unit;
+            const limits = historyRangeLimits[unit];
+            historyRangeValue = Math.min(Math.max(historyRangeValue, limits.min), limits.max);
+            historyUseFullRange = false;
+            updateHistoryControlsUi();
+            renderDashboard();
+        }
+
+        function setHistoryRange(value) {
+            historyRangeValue = Number(value);
+            historyUseFullRange = false;
+            updateHistoryControlsUi();
+            renderDashboard();
+        }
+
+        function showFullHistory() {
+            historyUseFullRange = true;
+            updateHistoryControlsUi();
+            renderDashboard();
+        }
+
+        function getQueryParams() {
+            const query = new URLSearchParams({ limit: 'all' });
+            if (viewMode === 'current_shift') {
+                query.set('current_shift_only', 'true');
+                if (activeShift) query.set('shift', activeShift);
+                if (activeShiftDate) query.set('shift_date', activeShiftDate);
+            }
+            return query;
+        }
+
+        function getLatestEventTimestamp(events) {
+            if (!events.length) {
+                return null;
+            }
+            return new Date(events[events.length - 1].timestamp_iso);
+        }
+
+        function subtractPeriod(date, unit, amount) {
+            const next = new Date(date);
+            if (unit === 'days') {
+                next.setDate(next.getDate() - amount);
+            } else if (unit === 'months') {
+                next.setMonth(next.getMonth() - amount);
+            } else if (unit === 'years') {
+                next.setFullYear(next.getFullYear() - amount);
+            }
+            return next;
+        }
+
+        function getFilteredEvents() {
+            if (viewMode !== 'all_history' || historyUseFullRange || rawEvents.length === 0) {
+                return [...rawEvents];
+            }
+
+            const latest = getLatestEventTimestamp(rawEvents);
+            if (!latest) {
+                return [];
+            }
+
+            const threshold = subtractPeriod(latest, historyUnit, historyRangeValue);
+            return rawEvents.filter(event => new Date(event.timestamp_iso) >= threshold);
+        }
+
+        function startOfWeek(date) {
+            const result = new Date(date);
+            const day = result.getDay();
+            const diff = (day + 6) % 7;
+            result.setHours(0, 0, 0, 0);
+            result.setDate(result.getDate() - diff);
+            return result;
+        }
+
+        function getHistoryGranularity() {
+            if (historyUseFullRange || historyUnit === 'years') {
+                return 'month';
+            }
+            if (historyUnit === 'months') {
+                return historyRangeValue <= 3 ? 'day' : 'week';
+            }
+            return historyRangeValue <= 31 ? 'day' : 'week';
+        }
+
+        function formatBucketLabel(date, granularity) {
+            if (granularity === 'month') {
+                return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short' });
+            }
+            if (granularity === 'week') {
+                return `Week of ${date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}`;
+            }
+            return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+        }
+
+        function buildHistorySeries(events, granularity) {
+            const buckets = new Map();
+            for (const event of events) {
+                const timestamp = new Date(event.timestamp_iso);
+                let bucketDate;
+                if (granularity === 'month') {
+                    bucketDate = new Date(timestamp.getFullYear(), timestamp.getMonth(), 1);
+                } else if (granularity === 'week') {
+                    bucketDate = startOfWeek(timestamp);
+                } else {
+                    bucketDate = new Date(timestamp.getFullYear(), timestamp.getMonth(), timestamp.getDate());
+                }
+
+                const key = bucketDate.toISOString();
+                if (!buckets.has(key)) {
+                    buckets.set(key, {
+                        label: formatBucketLabel(bucketDate, granularity),
+                        count: 0,
+                        transitTotal: 0
+                    });
+                }
+
+                const bucket = buckets.get(key);
+                bucket.count += 1;
+                bucket.transitTotal += Number(event.transit_time_sec || 0);
+            }
+            return Array.from(buckets.values());
+        }
+
+        function renderCurrentShiftKpis(events) {
+            const latest = events[events.length - 1];
+            const averageTransit = events.length
+                ? events.reduce((sum, event) => sum + Number(event.transit_time_sec || 0), 0) / events.length
+                : 0;
+
+            document.getElementById('kpi-label-a').textContent = 'Current Shift';
+            document.getElementById('kpi-label-b').textContent = 'Shift Volume';
+            document.getElementById('kpi-label-c').textContent = 'Avg Transit';
+            document.getElementById('kpi-label-d').textContent = 'Last Angle';
+            document.getElementById('kpi-a').textContent = latest ? latest.shift.replace('_', ' ') : 'Waiting...';
+            document.getElementById('kpi-b').textContent = latest ? latest.shift_count : '0';
+            document.getElementById('kpi-c').textContent = `${averageTransit.toFixed(2)}s`;
+            document.getElementById('kpi-d').textContent = latest ? `${latest.orientation_deg}°` : '0°';
+        }
+
+        function renderHistoryKpis(events) {
+            const latest = getLatestEventTimestamp(events);
+            const totalEvents = events.length;
+            const averageTransit = totalEvents
+                ? events.reduce((sum, event) => sum + Number(event.transit_time_sec || 0), 0) / totalEvents
+                : 0;
+            const averageAbsAngle = totalEvents
+                ? events.reduce((sum, event) => sum + Math.abs(Number(event.orientation_deg || 0)), 0) / totalEvents
+                : 0;
+            const shiftWindows = new Set(events.map(event => `${event.shift_date || 'unknown'}-${event.shift}`)).size;
+
+            document.getElementById('kpi-label-a').textContent = 'Selected Period';
+            document.getElementById('kpi-label-b').textContent = 'Events In Period';
+            document.getElementById('kpi-label-c').textContent = 'Avg Transit';
+            document.getElementById('kpi-label-d').textContent = 'Shift Windows';
+            document.getElementById('kpi-a').textContent = latest
+                ? (historyUseFullRange ? 'Full Range' : `Last ${historyRangeValue} ${historyUnit}`)
+                : 'No Data';
+            document.getElementById('kpi-b').textContent = String(totalEvents);
+            document.getElementById('kpi-c').textContent = `${averageTransit.toFixed(2)}s`;
+            document.getElementById('kpi-d').textContent = String(shiftWindows);
+            document.getElementById('history-summary').textContent = latest
+                ? `Latest stored event: ${latest.toLocaleString()} | Avg |Angle|: ${averageAbsAngle.toFixed(2)}°`
+                : 'No stored history found for the selected period.';
+        }
+
+        function renderCurrentShiftPlots(events) {
+            document.getElementById('chart-title-a').textContent = 'Orientation Drift Control';
+            document.getElementById('chart-title-b').textContent = 'Transit Time Distribution';
+            document.getElementById('chart-title-c').textContent = 'Cumulative Shift Volume';
+
+            Plotly.react('plot-a', [{
+                x: events.map(event => new Date(event.timestamp_iso)),
+                y: events.map(event => Number(event.orientation_deg || 0)),
+                mode: 'markers',
+                marker: {
+                    size: 10,
+                    color: events.map(event => Math.abs(Number(event.orientation_deg || 0)) > 15 ? '#ef4444' : '#10b981')
+                }
+            }], orientationLayout, {displayModeBar: false});
+
+            Plotly.react('plot-b', [{
+                x: events.map(event => Number(event.transit_time_sec || 0)),
+                type: 'histogram',
+                marker: { color: '#3b82f6' },
+                xbins: { start: 0, end: 20, size: 0.5 }
+            }], histogramLayout, {displayModeBar: false});
+
+            Plotly.react('plot-c', [{
+                x: events.map(event => new Date(event.timestamp_iso)),
+                y: events.map(event => event.shift_count),
+                type: 'scatter',
+                mode: 'lines+markers',
+                line: { color: '#10b981', width: 3 }
+            }], {
+                ...lineLayout,
+                yaxis: { title: 'Shift Count', gridcolor: '#334155' }
+            }, {displayModeBar: false});
+        }
+
+        function renderHistoryPlots(events) {
+            document.getElementById('chart-title-a').textContent = 'Volume Trend';
+            document.getElementById('chart-title-b').textContent = 'Average Transit Trend';
+            document.getElementById('chart-title-c').textContent = 'Shift Distribution';
+
+            const granularity = getHistoryGranularity();
+            const series = buildHistorySeries(events, granularity);
+            const shiftCounts = new Map();
+
+            for (const event of events) {
+                shiftCounts.set(event.shift, (shiftCounts.get(event.shift) || 0) + 1);
+            }
+
+            Plotly.react('plot-a', [{
+                x: series.map(point => point.label),
+                y: series.map(point => point.count),
+                type: 'scatter',
+                mode: 'lines+markers',
+                line: { color: '#10b981', width: 3 },
+                marker: { size: 8 }
+            }], {
+                ...lineLayout,
+                xaxis: { title: 'Period', gridcolor: '#334155' },
+                yaxis: { title: 'Events', gridcolor: '#334155' }
+            }, {displayModeBar: false});
+
+            Plotly.react('plot-b', [{
+                x: series.map(point => point.label),
+                y: series.map(point => point.count ? Number((point.transitTotal / point.count).toFixed(2)) : 0),
+                type: 'bar',
+                marker: { color: '#3b82f6' }
+            }], {
+                ...darkLayout,
+                xaxis: { title: 'Period', gridcolor: '#334155' },
+                yaxis: { title: 'Avg Transit (s)', gridcolor: '#334155' }
+            }, {displayModeBar: false});
+
+            Plotly.react('plot-c', [{
+                x: Array.from(shiftCounts.keys()),
+                y: Array.from(shiftCounts.values()),
+                type: 'bar',
+                marker: { color: ['#10b981', '#3b82f6', '#f59e0b', '#ef4444'] }
+            }], {
+                ...darkLayout,
+                xaxis: { title: 'Shift', gridcolor: '#334155' },
+                yaxis: { title: 'Events', gridcolor: '#334155' }
+            }, {displayModeBar: false});
+        }
+
+        function renderTable(events) {
+            const tbody = document.getElementById('log-body');
+            tbody.innerHTML = '';
+
+            const rows = viewMode === 'current_shift'
+                ? events.slice().reverse().slice(0, 50)
+                : events.slice().reverse();
+
+            for (const event of rows) {
+                const time = new Date(event.timestamp_iso);
+                const angleColor = Math.abs(Number(event.orientation_deg || 0)) > 15 ? '#ef4444' : '#10b981';
+                const timeText = viewMode === 'current_shift'
+                    ? time.toLocaleTimeString()
+                    : time.toLocaleString();
+                const idText = viewMode === 'current_shift'
+                    ? `<strong>${event.uuid}</strong>`
+                    : `<strong>${event.uuid}</strong><br><span style="color:#94a3b8">${event.shift.replace('_', ' ')} | ${event.shift_date || ''}</span>`;
+
+                const row = `<tr><td>${timeText}</td><td>${idText}</td><td>${Number(event.transit_time_sec || 0).toFixed(2)}</td><td style="color:${angleColor}">${event.orientation_deg}°</td></tr>`;
+                tbody.insertAdjacentHTML('beforeend', row);
+            }
+        }
+
+        function renderDashboard() {
+            displayedEvents = getFilteredEvents();
+            if (viewMode === 'current_shift') {
+                renderCurrentShiftKpis(displayedEvents);
+                renderCurrentShiftPlots(displayedEvents);
+                document.getElementById('history-summary').textContent = '';
+            } else {
+                renderHistoryKpis(displayedEvents);
+                renderHistoryPlots(displayedEvents);
+            }
+            renderTable(displayedEvents);
+        }
 
         async function loadCurrentKpis() {
+            if (viewMode !== 'current_shift') {
+                return;
+            }
             try {
                 const response = await fetch('/api/kpis/current');
                 const payload = await response.json();
                 const kpis = payload.kpis;
-                if (!kpis || !kpis.current_shift) {
-                    return;
+                if (kpis && kpis.current_shift) {
+                    activeShift = kpis.current_shift;
+                    activeShiftDate = kpis.shift_date || null;
                 }
-
-                activeShift = kpis.current_shift;
-                boxCount = kpis.shift_volume;
-                totalTime = kpis.average_transit_time_sec * (boxCount || 0);
-                document.getElementById('kpi-shift').textContent = kpis.current_shift.replace("_", " ");
-                document.getElementById('kpi-total').textContent = kpis.shift_volume;
-                document.getElementById('kpi-time').textContent = `${kpis.average_transit_time_sec.toFixed(2)}s`;
-                document.getElementById('kpi-angle').textContent = `${kpis.last_angle_deg}°`;
             } catch (error) {
                 console.warn('Could not load current KPI state', error);
             }
         }
 
-        async function loadChartOverview() {
+        async function loadEvents() {
             try {
-                const response = await fetch('/api/charts/overview?limit=50');
+                const response = await fetch(`/api/events?${getQueryParams().toString()}`);
                 const payload = await response.json();
-
-                const orientation = payload.orientation || [];
-                const transit = payload.transit || [];
-                const volume = payload.volume || [];
-
-                scatterX = orientation.map(point => new Date(point.timestamp_iso));
-                scatterY = orientation.map(point => point.orientation_deg);
-                scatterColors = orientation.map(point => point.color);
-                transitDataArray = [...transit];
-
-                Plotly.react('plot-orientation', [{
-                    x: [...scatterX],
-                    y: [...scatterY],
-                    mode: 'markers',
-                    marker: { size: 10, color: [...scatterColors] }
-                }], layoutOrientation);
-
-                Plotly.react('plot-transit', [{
-                    x: [...transitDataArray],
-                    type: 'histogram',
-                    marker: { color: '#3b82f6' },
-                    xbins: { start: 0, end: 20, size: 0.5 }
-                }], layoutTransit);
-
-                Plotly.react('plot-volume', [{
-                    x: volume.map(point => new Date(point.timestamp_iso)),
-                    y: volume.map(point => point.shift_count),
-                    type: 'scatter',
-                    mode: 'lines+markers',
-                    line: { color: '#10b981', width: 3 }
-                }], layoutVolume);
-            } catch (error) {
-                console.warn('Could not load chart overview', error);
-            }
-        }
-
-        function renderEvent(data, mode = 'live') {
-            if (!data || !data.uuid || knownEventIds.has(data.uuid)) {
-                return;
-            }
-
-            knownEventIds.add(data.uuid);
-            sessionData.push(data);
-            const time = new Date(data.timestamp_iso);
-
-            // Update KPIs
-            if (activeShift !== data.shift) {
-                activeShift = data.shift;
-                totalTime = 0;
-            }
-            boxCount = data.shift_count;
-            totalTime += data.transit_time_sec;
-            document.getElementById('kpi-shift').textContent = data.shift.replace("_", " ");
-            document.getElementById('kpi-total').textContent = boxCount;
-            document.getElementById('kpi-time').textContent = (totalTime / boxCount).toFixed(2) + "s";
-            document.getElementById('kpi-angle').textContent = data.orientation_deg + "°";
-
-            // --- A. Scatter Plot Update (Forced Re-render via Spread Operator) ---
-            const dotColor = Math.abs(data.orientation_deg) > 15 ? '#ef4444' : '#10b981';
-            
-            scatterX.push(time);
-            scatterY.push(data.orientation_deg);
-            scatterColors.push(dotColor);
-            
-            if(scatterX.length > 50) { 
-                scatterX.shift(); scatterY.shift(); scatterColors.shift(); 
-            }
-            
-            Plotly.react('plot-orientation', [{
-                x: [...scatterX], 
-                y: [...scatterY], 
-                mode: 'markers', 
-                marker: { size: 10, color: [...scatterColors] }
-            }], layoutOrientation);
-
-            // --- B. Histogram Update (Forced Re-render via Spread Operator) ---
-            transitDataArray.push(data.transit_time_sec);
-            Plotly.react('plot-transit', [{ 
-                x: [...transitDataArray], 
-                type: 'histogram', 
-                marker: { color: '#3b82f6' },
-                xbins: { start: 0, end: 20, size: 0.5 } 
-            }], layoutTransit);
-
-            // --- C. Volume Line Update ---
-            if (mode === 'history') {
-                const recentEvents = sessionData.slice(-50);
-                Plotly.react('plot-volume', [{
-                    x: recentEvents.map(d => new Date(d.timestamp_iso)),
-                    y: recentEvents.map(d => d.shift_count),
-                    type: 'scatter',
-                    mode: 'lines+markers',
-                    line: { color: '#10b981', width: 3 }
-                }], layoutVolume);
-            } else {
-                Plotly.extendTraces('plot-volume', {
-                    x: [[time]],
-                    y: [[boxCount]]
-                }, [0], 50);
-            }
-
-            // Update Table
-            const row = `<tr><td>${time.toLocaleTimeString()}</td><td><strong>${data.uuid}</strong></td>
-                         <td>${data.transit_time_sec.toFixed(2)}</td>
-                         <td style="color:${dotColor}">${data.orientation_deg}°</td></tr>`;
-            const tbody = document.getElementById('log-body');
-            if (mode === 'history') {
-                tbody.insertAdjacentHTML('beforeend', row);
-            } else {
-                tbody.insertAdjacentHTML('afterbegin', row);
-            }
-            if(tbody.children.length > 20) tbody.lastElementChild.remove();
-        }
-
-        async function loadHistory() {
-            try {
-                const response = await fetch('/api/events?limit=50');
-                const payload = await response.json();
-                for (const event of payload.events || []) {
-                    renderEvent(event, 'history');
+                rawEvents = payload.events || [];
+                if (rawEvents.length) {
+                    const latest = rawEvents[rawEvents.length - 1];
+                    activeShift = latest.shift;
+                    activeShiftDate = latest.shift_date || null;
                 }
+                renderDashboard();
             } catch (error) {
                 console.warn('Could not load historical events', error);
             }
         }
 
-        loadCurrentKpis();
-        loadChartOverview();
-        loadHistory();
+        async function bootstrapDashboard() {
+            clearDashboardState();
+            await loadCurrentKpis();
+            updateHistoryControlsUi();
+            await loadEvents();
+        }
 
-        socket.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            renderEvent(data, 'live');
-        };
+        function renderLiveEvent(event) {
+            if (!event || !event.uuid) {
+                return;
+            }
 
-        // --- 3. CSV EXPORT ---
+            if (rawEvents.some(existing => existing.uuid === event.uuid)) {
+                return;
+            }
+
+            const incomingShiftDate = event.shift_date || null;
+            const shiftChanged = viewMode === 'current_shift'
+                && activeShift !== null
+                && (activeShift !== event.shift || activeShiftDate !== incomingShiftDate);
+
+            if (shiftChanged) {
+                activeShift = event.shift;
+                activeShiftDate = incomingShiftDate;
+                rawEvents = [];
+            }
+
+            rawEvents.push(event);
+            rawEvents.sort((left, right) => new Date(left.timestamp_iso) - new Date(right.timestamp_iso));
+            activeShift = event.shift;
+            activeShiftDate = incomingShiftDate;
+            renderDashboard();
+        }
+
         function exportCSV() {
-            if (sessionData.length === 0) return alert("No data to export.");
-            const headers = ["Timestamp", "UUID", "Shift", "Count", "Transit_Sec", "Angle_Deg"];
-            const rows = sessionData.map(d => [d.timestamp_iso, d.uuid, d.shift, d.shift_count, d.transit_time_sec, d.orientation_deg].join(","));
-            const blob = new Blob([[headers.join(","), ...rows].join("\n")], { type: 'text/csv' });
-            const link = document.createElement("a");
+            if (displayedEvents.length === 0) {
+                return alert('No data to export.');
+            }
+
+            const headers = ['Timestamp', 'UUID', 'Shift', 'Count', 'Transit_Sec', 'Angle_Deg'];
+            const rows = displayedEvents.map(event => [
+                event.timestamp_iso,
+                event.uuid,
+                event.shift,
+                event.shift_count,
+                event.transit_time_sec,
+                event.orientation_deg
+            ].join(','));
+            const blob = new Blob([[headers.join(','), ...rows].join('\n')], { type: 'text/csv' });
+            const link = document.createElement('a');
             link.href = URL.createObjectURL(blob);
             link.download = `Assembly_Analytics_${new Date().toISOString().slice(0,10)}.csv`;
             link.click();
         }
-    </script>
+
+        socket.onopen = () => {
+            document.getElementById('conn-status').textContent = 'CONNECTED (LIVE)';
+            document.getElementById('conn-status').classList.add('connected');
+        };
+
+        socket.onerror = () => {
+            document.getElementById('conn-status').textContent = 'CONNECTION ERROR';
+            document.getElementById('conn-status').classList.remove('connected');
+        };
+
+        socket.onclose = () => {
+            document.getElementById('conn-status').textContent = 'DISCONNECTED';
+            document.getElementById('conn-status').classList.remove('connected');
+        };
+
+        socket.onmessage = (event) => {
+            renderLiveEvent(JSON.parse(event.data));
+        };
+
+        updateViewToggleUi();
+        updateHistoryControlsUi();
+        resetPlots();
+        bootstrapDashboard();
+</script>
 </body>
 </html>

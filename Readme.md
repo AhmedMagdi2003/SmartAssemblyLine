@@ -87,12 +87,19 @@ SmartAssemblyLine/
 │   ├── test_tmp/
 │   └── videos/
 ├── deployment/
-│   └── docker-compose.db.yml
+│   ├── docker-compose.db.yml
+│   ├── docker-compose.local.yml
+│   └── mosquitto/
+│       └── mosquitto.conf
 ├── models/
 ├── scripts/
+│   ├── fetch_db.py
 │   ├── init_db.py
 │   ├── run_calibration.py
 │   ├── run_pipeline.py
+│   ├── start_local_stack.sh
+│   ├── start_local_stack.ps1
+│   ├── stop_local_stack.sh
 │   └── train_model.py
 ├── src/
 │   ├── comms/
@@ -317,6 +324,71 @@ Use this order every time:
 8. Open `http://127.0.0.1:8000`
 9. Start `python scripts/run_pipeline.py`
 
+## Option 1: Local PC Stack
+
+If the Raspberry Pi 4 handles camera + ROS and the PC runs the rest of the system locally, use:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/start_local_stack.ps1
+```
+
+This mode:
+
+- starts PostgreSQL in Docker on `localhost:5433`
+- starts Mosquitto in Docker on `localhost:1883`
+- waits for both services to be ready
+- runs `alembic upgrade head`
+- opens a logger PowerShell window
+- opens a dashboard PowerShell window
+- opens a pipeline PowerShell window
+
+The infrastructure file used for this mode is:
+
+```text
+deployment/docker-compose.local.yml
+```
+
+Optional flags:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/start_local_stack.ps1 -NoPipeline
+powershell -ExecutionPolicy Bypass -File scripts/start_local_stack.ps1 -NoDashboard
+powershell -ExecutionPolicy Bypass -File scripts/start_local_stack.ps1 -NoLogger
+powershell -ExecutionPolicy Bypass -File scripts/start_local_stack.ps1 -NoInfra
+```
+
+If you run from WSL Ubuntu with conda, use:
+
+```bash
+cd /mnt/d/Machine_Learning/Vision/SmartAssemblyLine
+bash scripts/start_local_stack.sh
+```
+
+WSL options:
+
+```bash
+bash scripts/start_local_stack.sh --conda-env torch
+bash scripts/start_local_stack.sh --no-pipeline
+bash scripts/start_local_stack.sh --no-dashboard
+bash scripts/start_local_stack.sh --no-logger
+bash scripts/start_local_stack.sh --no-infra
+```
+
+This WSL script:
+
+- activates your conda environment
+- starts Docker services
+- runs migrations
+- starts logger and dashboard in the background
+- writes logs under `data/runtime/logs/`
+- runs the pipeline in the current terminal
+
+To stop the WSL local stack:
+
+```bash
+bash scripts/stop_local_stack.sh
+```
+
 ## What You Should See
 
 ### In the pipeline terminal
@@ -486,6 +558,53 @@ Example:
 
 ```bash
 curl http://127.0.0.1:8000/api/charts/overview?limit=10
+```
+
+## Database Fetch Tool
+
+You can now inspect PostgreSQL records with a simple CLI tool instead of writing SQL manually.
+
+### Fetch recent events
+
+```bash
+python scripts/fetch_db.py events --limit 20
+```
+
+### Fetch only the latest event
+
+```bash
+python scripts/fetch_db.py events --latest
+```
+
+### Filter by shift and shift date
+
+```bash
+python scripts/fetch_db.py events --shift Morning_Shift --shift-date 2026-04-19 --limit 50
+```
+
+### Fetch one exact UUID
+
+```bash
+python scripts/fetch_db.py events --uuid BOX-20260419-Morning_Shift-0007
+```
+
+### Print JSON instead of a table
+
+```bash
+python scripts/fetch_db.py events --limit 5 --json
+```
+
+### Show shift summaries
+
+```bash
+python scripts/fetch_db.py shifts --limit 10
+```
+
+### Count rows
+
+```bash
+python scripts/fetch_db.py count
+python scripts/fetch_db.py count --shift Morning_Shift --shift-date 2026-04-19
 ```
 
 ## Verify The Data Flow

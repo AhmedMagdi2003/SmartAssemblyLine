@@ -1,0 +1,34 @@
+services:
+  smart-assembly-db:
+    image: pgvector/pgvector:0.8.2-pg17
+    container_name: smart-assembly-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: smart_assembly
+      POSTGRES_USER: smartassembly
+      POSTGRES_PASSWORD: smartassembly
+    ports:
+      - "5433:5432"
+    volumes:
+      - smart_assembly_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U smartassembly -d smart_assembly"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  smart-assembly-mqtt:
+    image: eclipse-mosquitto:2
+    container_name: smart-assembly-mqtt
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - smart_assembly_mosquitto_data:/mosquitto/data
+      - smart_assembly_mosquitto_log:/mosquitto/log
+
+volumes:
+  smart_assembly_db_data:
+  smart_assembly_mosquitto_data:
+  smart_assembly_mosquitto_log:

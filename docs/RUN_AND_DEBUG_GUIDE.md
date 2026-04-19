@@ -112,6 +112,74 @@ conda activate torch
 python scripts/run_pipeline.py
 ```
 
+## Option 1: One-Command Local Stack
+
+For the workflow where the Raspberry Pi 4 provides camera + ROS and the PC runs the remaining services locally, use:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/start_local_stack.ps1
+```
+
+This script:
+
+1. starts Docker services from `deployment/docker-compose.local.yml`
+2. waits for PostgreSQL and Mosquitto
+3. runs `alembic upgrade head`
+4. opens separate PowerShell windows for:
+   - logger
+   - dashboard
+   - pipeline
+
+Optional flags:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/start_local_stack.ps1 -NoPipeline
+powershell -ExecutionPolicy Bypass -File scripts/start_local_stack.ps1 -NoDashboard
+powershell -ExecutionPolicy Bypass -File scripts/start_local_stack.ps1 -NoLogger
+powershell -ExecutionPolicy Bypass -File scripts/start_local_stack.ps1 -NoInfra
+```
+
+### WSL Ubuntu + Conda Version
+
+If you normally run from WSL Ubuntu with conda, use:
+
+```bash
+cd /mnt/d/Machine_Learning/Vision/SmartAssemblyLine
+bash scripts/start_local_stack.sh
+```
+
+Examples:
+
+```bash
+bash scripts/start_local_stack.sh --conda-env torch
+bash scripts/start_local_stack.sh --no-pipeline
+bash scripts/start_local_stack.sh --no-dashboard
+bash scripts/start_local_stack.sh --no-logger
+bash scripts/start_local_stack.sh --no-infra
+```
+
+Behavior:
+
+1. activates your conda environment
+2. starts Docker services
+3. waits for PostgreSQL and Mosquitto
+4. runs `alembic upgrade head`
+5. starts logger in background
+6. starts dashboard in background
+7. runs pipeline in the current terminal
+
+Logs are written to:
+
+```text
+data/runtime/logs/
+```
+
+To stop the WSL local stack:
+
+```bash
+bash scripts/stop_local_stack.sh
+```
+
 ## API Endpoints
 
 Once the dashboard server is running:
@@ -151,6 +219,24 @@ SELECT id, uuid, shift, shift_count
 FROM box_events
 ORDER BY id DESC
 LIMIT 10;
+```
+
+## Use The Fetch Tool
+
+If you want a cleaner way than raw SQL, use:
+
+```bash
+python scripts/fetch_db.py events --limit 20
+```
+
+Examples:
+
+```bash
+python scripts/fetch_db.py events --latest
+python scripts/fetch_db.py events --shift Morning_Shift --shift-date 2026-04-19 --limit 50
+python scripts/fetch_db.py shifts --limit 10
+python scripts/fetch_db.py count
+python scripts/fetch_db.py events --limit 5 --json
 ```
 
 ## If Logger Inserts But FastAPI Endpoints Return Empty Data

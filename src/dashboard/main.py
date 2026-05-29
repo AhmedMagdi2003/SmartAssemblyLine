@@ -35,7 +35,11 @@ except Exception:
     engine = None
     text = None
 
+from src.comms.mqtt_config import configure_mqtt_client, load_mqtt_settings
+
 app = FastAPI(title="Smart Assembly Line Dashboard")
+MQTT_SETTINGS = load_mqtt_settings()
+MQTT_ENABLED = os.getenv("MQTT_ENABLED", "true").strip().lower() not in {"0", "false", "no", "off"}
 
 # Allow the frontend to connect from anywhere during development
 app.add_middleware(
@@ -261,6 +265,7 @@ async def get_health():
         "status": status,
         "database": database_status,
         "mqtt_enabled": mqtt is not None,
+        "mqtt_topic": MQTT_SETTINGS["topic"],
         "mqtt_connected": mqtt_connected,
     }
     if details and database_status == "error":
@@ -279,16 +284,30 @@ async def startup_event():
         print("[WARNING] paho-mqtt is not installed. Dashboard will run without live MQTT data.")
         app.state.mqtt_client = None
         return
+
+    if not MQTT_ENABLED:
+        print("[INFO] MQTT is disabled by configuration. Dashboard will use database history only.")
+        app.state.mqtt_client = None
+        return
     
     # Initialize MQTT
     app.state.mqtt_client = mqtt.Client()
     app.state.mqtt_client.on_message = on_message
     
     try:
-        app.state.mqtt_client.connect("localhost", 1883, 60)
-        app.state.mqtt_client.subscribe("factory/assembly/boxes")
+        configure_mqtt_client(app.state.mqtt_client, MQTT_SETTINGS)
+        app.state.mqtt_client.connect(
+            MQTT_SETTINGS["host"],
+            MQTT_SETTINGS["port"],
+            MQTT_SETTINGS["keepalive"],
+        )
+        app.state.mqtt_client.subscribe(MQTT_SETTINGS["topic"])
         app.state.mqtt_client.loop_start() # Starts the MQTT background thread
-        print("[MQTT] Connected and listening to broker...")
+        print(
+            "[MQTT] Connected to "
+            f"{MQTT_SETTINGS['host']}:{MQTT_SETTINGS['port']} and listening on "
+            f"{MQTT_SETTINGS['topic']}..."
+        )
     except Exception as e:
         print(f"[WARNING] Could not connect to MQTT Broker: {e}")
 

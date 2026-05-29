@@ -389,6 +389,97 @@ To stop the WSL local stack:
 bash scripts/stop_local_stack.sh
 ```
 
+## Option 3: Hybrid Google Cloud
+
+If the local PC should keep running the vision pipeline and Google Cloud should host the dashboard, database, and online access, use the hybrid deployment path.
+
+Architecture:
+
+- local PC runs `scripts/run_pipeline.py`
+- Google Compute Engine VM runs:
+  - Mosquitto
+  - logger
+- Cloud SQL stores `box_events`
+- Cloud Run serves the dashboard and API
+
+Local PC launchers for this mode:
+
+WSL / Ubuntu:
+
+```bash
+bash scripts/start_hybrid_edge.sh
+```
+
+Windows PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/start_hybrid_edge.ps1
+```
+
+Before running them, create:
+
+```text
+deployment/cloud/env/edge-hybrid.env
+```
+
+from:
+
+```text
+deployment/cloud/env/edge-hybrid.env.example
+```
+
+and set the cloud MQTT broker host, port, and credentials.
+
+Full deployment guide:
+
+- [Google Cloud Option 3 Guide](/D:/Machine_Learning/Vision/SmartAssemblyLine/docs/GOOGLE_CLOUD_OPTION3_GUIDE.md)
+
+## Option 4: Full Local With Online Dashboard Address
+
+If you want everything to keep running locally on the factory PC, but still want managers to open the dashboard remotely, use the local stack plus a dashboard tunnel.
+
+This mode keeps:
+
+- PostgreSQL local
+- Mosquitto local
+- logger local
+- dashboard local
+- pipeline local
+
+and exposes only the dashboard URL to the internet.
+
+Quick public link:
+
+WSL / Ubuntu:
+
+```bash
+bash scripts/start_dashboard_tunnel.sh
+```
+
+Windows PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/start_dashboard_tunnel.ps1
+```
+
+For a stable public hostname, create:
+
+```text
+deployment/cloud/env/dashboard-tunnel.env
+```
+
+from:
+
+```text
+deployment/cloud/env/dashboard-tunnel.env.example
+```
+
+and set `CLOUDFLARE_TUNNEL_TOKEN`.
+
+Full guide:
+
+- [Local Online Dashboard Guide](/D:/Machine_Learning/Vision/SmartAssemblyLine/docs/LOCAL_ONLINE_DASHBOARD_GUIDE.md)
+
 ## What You Should See
 
 ### In the pipeline terminal

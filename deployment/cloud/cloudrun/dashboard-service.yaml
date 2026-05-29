@@ -1,0 +1,47 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: smart-assembly-dashboard
+spec:
+  template:
+    metadata:
+      annotations:
+        run.googleapis.com/cloudsql-instances: PROJECT_ID:REGION:INSTANCE_NAME
+    spec:
+      containerConcurrency: 20
+      timeoutSeconds: 300
+      containers:
+        - image: REGION-docker.pkg.dev/PROJECT_ID/smart-assembly/dashboard:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: smart-assembly-database-url
+                  key: latest
+            - name: MQTT_ENABLED
+              value: "false"
+            - name: MQTT_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: smart-assembly-mqtt-host
+                  key: latest
+            - name: MQTT_PORT
+              value: "1883"
+            - name: MQTT_TOPIC
+              value: "factory/assembly/boxes"
+            - name: MQTT_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: smart-assembly-mqtt-username
+                  key: latest
+            - name: MQTT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: smart-assembly-mqtt-password
+                  key: latest
+            - name: MQTT_TLS_ENABLED
+              value: "false"
+            - name: MQTT_KEEPALIVE
+              value: "60"

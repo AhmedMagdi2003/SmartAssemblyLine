@@ -5,10 +5,15 @@ try:
 except ImportError:
     mqtt = None
 
+from src.comms.mqtt_config import configure_mqtt_client, load_mqtt_settings
+
 class ProductionStreamer:
-    def __init__(self, broker="localhost", port=1883, topic="factory/assembly/boxes"):
+    def __init__(self, broker=None, port=None, topic=None):
+        settings = load_mqtt_settings()
+        broker = broker or settings["host"]
+        port = port or settings["port"]
+        self.topic = topic or settings["topic"]
         self.client = None
-        self.topic = topic
         self.is_connected = False
         if mqtt is None:
             print("[WARNING] paho-mqtt is not installed. Data will not be streamed.")
@@ -16,7 +21,8 @@ class ProductionStreamer:
 
         self.client = mqtt.Client()
         try:
-            self.client.connect(broker, port, 60)
+            configure_mqtt_client(self.client, settings)
+            self.client.connect(broker, port, settings["keepalive"])
             self.client.loop_start() # Runs network loop in the background
             self.is_connected = True
             print(f"[NETWORK] Connected to MQTT Broker at {broker}:{port}")

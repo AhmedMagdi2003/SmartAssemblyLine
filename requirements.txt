@@ -10,3 +10,5 @@ websockets==13.1
 fastapi>=0.110,<1.0
 SQLAlchemy>=2.0
 alembic>=1.13
+psycopg2-binary>=2.9,<3.0
+python-dotenv>=1.0,<2.0

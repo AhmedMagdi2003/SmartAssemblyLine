@@ -180,6 +180,56 @@ To stop the WSL local stack:
 bash scripts/stop_local_stack.sh
 ```
 
+## Option 4: Publish The Local Dashboard Online
+
+If you want the whole system to stay local but the dashboard to be reachable from an online address, use the dashboard tunnel launcher after the local stack is running.
+
+### Quick tunnel
+
+WSL / Ubuntu:
+
+```bash
+bash scripts/start_dashboard_tunnel.sh
+```
+
+Windows PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/start_dashboard_tunnel.ps1
+```
+
+This prints a temporary public URL from Cloudflare.
+
+### Stable public hostname
+
+Create:
+
+```text
+deployment/cloud/env/dashboard-tunnel.env
+```
+
+from:
+
+```text
+deployment/cloud/env/dashboard-tunnel.env.example
+```
+
+Then set:
+
+```env
+DASHBOARD_HOST=127.0.0.1
+DASHBOARD_PORT=8000
+CLOUDFLARE_TUNNEL_TOKEN=your-token-here
+```
+
+Run the same script again and it will use named-tunnel mode.
+
+### Important
+
+- do not expose PostgreSQL or Mosquitto directly
+- only the dashboard should be published
+- verify `http://127.0.0.1:8000` locally before starting the tunnel
+
 ## API Endpoints
 
 Once the dashboard server is running:

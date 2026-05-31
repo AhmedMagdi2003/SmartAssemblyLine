@@ -2,6 +2,7 @@ from pathlib import Path
 import sys
 import json
 import csv
+import os
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
@@ -19,8 +20,8 @@ except Exception as exc:
     save_box_event = None
     DB_IMPORT_ERROR = exc
 
-BROKER = "localhost"
-TOPIC = "factory/assembly/boxes"
+from src.comms.mqtt_config import configure_mqtt_client, load_mqtt_settings
+
 LOG_DIR = PROJECT_ROOT / "data" / "logs"
 FIELDNAMES = [
     "uuid",
@@ -35,6 +36,7 @@ FIELDNAMES = [
 ]
 
 LOG_DIR.mkdir(parents=True, exist_ok=True)
+MQTT_SETTINGS = load_mqtt_settings()
 
 
 def _infer_shift_file_date(payload):
@@ -111,16 +113,25 @@ def on_message(client, userdata, msg):
         print(f"[ERROR] Failed to persist payload: {exc}")
 
 if __name__ == "__main__":
-    print(f"Starting Data Logger. Listening to {TOPIC}...")
+    print(
+        "Starting Data Logger. "
+        f"Listening to {MQTT_SETTINGS['topic']} on "
+        f"{MQTT_SETTINGS['host']}:{MQTT_SETTINGS['port']}..."
+    )
     if mqtt is None:
         raise RuntimeError("paho-mqtt is not installed. Run `pip install -r requirements.txt` first.")
     if save_box_event is None and DB_IMPORT_ERROR is not None:
         print(f"[WARNING] Database layer unavailable at startup: {DB_IMPORT_ERROR}")
     client = mqtt.Client()
     client.on_message = on_message
-    
-    client.connect(BROKER, 1883, 60)
-    client.subscribe(TOPIC)
+
+    configure_mqtt_client(client, MQTT_SETTINGS)
+    client.connect(
+        MQTT_SETTINGS["host"],
+        MQTT_SETTINGS["port"],
+        MQTT_SETTINGS["keepalive"],
+    )
+    client.subscribe(MQTT_SETTINGS["topic"])
     
     # Keep the script running forever, listening for live data
     client.loop_forever()

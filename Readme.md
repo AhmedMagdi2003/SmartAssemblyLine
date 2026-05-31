@@ -324,9 +324,18 @@ Use this order every time:
 8. Open `http://127.0.0.1:8000`
 9. Start `python scripts/run_pipeline.py`
 
-## Option 1: Local PC Stack
+## Option 1: One-Click Auto-Launcher (Recommended for Windows)
 
-If the Raspberry Pi 4 handles camera + ROS and the PC runs the rest of the system locally, use:
+For the easiest way to run the entire project (Docker setup, migrations, logger, web dashboard, and camera window), make sure **Docker Desktop** is open, and then do one of the following:
+
+* **Double-click** the compiled executable [SmartAssemblyLine.exe](file:///d:/Machine_Learning/Vision/SmartAssemblyLine/SmartAssemblyLine.exe) in the root folder.
+* **Double-click** the batch file wrapper [run_project.bat](file:///d:/Machine_Learning/Vision/SmartAssemblyLine/run_project.bat) in the root folder.
+
+This will automatically spin up the Docker containers, apply database migrations, launch the logger and FastAPI backend in the background, open the live web dashboard in your default browser, and open the real-time camera tracking window. Closing the tracking window (or pressing `q` / `Ctrl+C`) automatically halts and cleans up all background tasks and Docker services.
+
+## Option 2: PowerShell Stack (Manual Background Services)
+
+If you prefer to start the services with separate background logs under Windows PowerShell, run:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/start_local_stack.ps1
@@ -383,102 +392,17 @@ This WSL script:
 - writes logs under `data/runtime/logs/`
 - runs the pipeline in the current terminal
 
+To stop the Windows native local stack:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/stop_local_stack.ps1
+```
+
 To stop the WSL local stack:
 
 ```bash
 bash scripts/stop_local_stack.sh
 ```
-
-## Option 3: Hybrid Google Cloud
-
-If the local PC should keep running the vision pipeline and Google Cloud should host the dashboard, database, and online access, use the hybrid deployment path.
-
-Architecture:
-
-- local PC runs `scripts/run_pipeline.py`
-- Google Compute Engine VM runs:
-  - Mosquitto
-  - logger
-- Cloud SQL stores `box_events`
-- Cloud Run serves the dashboard and API
-
-Local PC launchers for this mode:
-
-WSL / Ubuntu:
-
-```bash
-bash scripts/start_hybrid_edge.sh
-```
-
-Windows PowerShell:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts/start_hybrid_edge.ps1
-```
-
-Before running them, create:
-
-```text
-deployment/cloud/env/edge-hybrid.env
-```
-
-from:
-
-```text
-deployment/cloud/env/edge-hybrid.env.example
-```
-
-and set the cloud MQTT broker host, port, and credentials.
-
-Full deployment guide:
-
-- [Google Cloud Option 3 Guide](/D:/Machine_Learning/Vision/SmartAssemblyLine/docs/GOOGLE_CLOUD_OPTION3_GUIDE.md)
-
-## Option 4: Full Local With Online Dashboard Address
-
-If you want everything to keep running locally on the factory PC, but still want managers to open the dashboard remotely, use the local stack plus a dashboard tunnel.
-
-This mode keeps:
-
-- PostgreSQL local
-- Mosquitto local
-- logger local
-- dashboard local
-- pipeline local
-
-and exposes only the dashboard URL to the internet.
-
-Quick public link:
-
-WSL / Ubuntu:
-
-```bash
-bash scripts/start_dashboard_tunnel.sh
-```
-
-Windows PowerShell:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts/start_dashboard_tunnel.ps1
-```
-
-For a stable public hostname, create:
-
-```text
-deployment/cloud/env/dashboard-tunnel.env
-```
-
-from:
-
-```text
-deployment/cloud/env/dashboard-tunnel.env.example
-```
-
-and set `CLOUDFLARE_TUNNEL_TOKEN`.
-
-Full guide:
-
-- [Local Online Dashboard Guide](/D:/Machine_Learning/Vision/SmartAssemblyLine/docs/LOCAL_ONLINE_DASHBOARD_GUIDE.md)
 
 ## What You Should See
 
@@ -541,7 +465,7 @@ pgvector/pgvector:0.8.2-pg17
 Start it with:
 
 ```bash
-docker compose -f deployment/docker-compose.db.yml up -d
+docker compose -f deployment/docker-compose.local.yml up -d
 ```
 
 That container exposes:

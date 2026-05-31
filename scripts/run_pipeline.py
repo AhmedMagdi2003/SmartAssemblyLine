@@ -39,6 +39,8 @@ class RawSocketStream:
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 65536)
         
         self.sock.connect((ip, port))
+        # THE FIX 3: Set socket to non-blocking AFTER connecting.
+        self.sock.setblocking(False)
 
     def start(self):
         threading.Thread(target=self.update, daemon=True).start()
@@ -48,30 +50,50 @@ class RawSocketStream:
         bytes_data = b''
         while not self.stopped:
             try:
-                # Grab a massive chunk of data at once
-                chunk = self.sock.recv(65536)
-                if not chunk:
-                    break
-                bytes_data += chunk
+                # THE FIX 4: Drain the entire OS TCP receive buffer in one go.
+                # Read all available bytes until the OS buffer is completely empty.
+                chunks = []
+                while True:
+                    try:
+                        chunk = self.sock.recv(65536)
+                        if not chunk:
+                            self.stopped = True
+                            break
+                        chunks.append(chunk)
+                    except BlockingIOError:
+                        break
+                    except socket.error as e:
+                        # WSAEWOULDBLOCK (10035) indicates no more data is currently available on Windows.
+                        if e.errno == 10035 or getattr(e, 'winerror', None) == 10035:
+                            break
+                        raise e
                 
-                # THE FIX 3: Use 'rfind' (reverse find) to search from the END of the data.
-                # If 3 frames arrived at the same time, this skips the old ones and only grabs the newest.
-                b = bytes_data.rfind(b'\xff\xd9') # Find the LAST End-of-Image marker
-                if b != -1:
-                    a = bytes_data.rfind(b'\xff\xd8', 0, b) # Find the Start-of-Image right before it
+                if self.stopped:
+                    break
+                
+                if chunks:
+                    bytes_data += b''.join(chunks)
                     
-                    if a != -1:
-                        jpg_data = bytes_data[a:b+2]
-                        # Decode instantly
-                        frame = cv2.imdecode(np.frombuffer(jpg_data, dtype=np.uint8), cv2.IMREAD_COLOR)
+                    # THE FIX 5: Find the LAST complete JPEG frame in the accumulated bytes.
+                    b = bytes_data.rfind(b'\xff\xd9') # Find the LAST End-of-Image marker
+                    if b != -1:
+                        a = bytes_data.rfind(b'\xff\xd8', 0, b) # Find the Start-of-Image right before it
                         
-                        if frame is not None:
-                            self.frame = frame
-                            self.ret = True
+                        if a != -1:
+                            jpg_data = bytes_data[a:b+2]
+                            # Decode ONLY the single latest frame.
+                            frame = cv2.imdecode(np.frombuffer(jpg_data, dtype=np.uint8), cv2.IMREAD_COLOR)
                             
-                    # Throw away EVERYTHING before the end marker so we never process old data
-                    bytes_data = bytes_data[b+2:]
-                    
+                            if frame is not None:
+                                self.frame = frame
+                                self.ret = True
+                                
+                        # Throw away EVERYTHING before the end marker to prevent lag accumulation
+                        bytes_data = bytes_data[b+2:]
+                
+                # Sleep briefly to yield CPU time
+                time.sleep(0.001)
+                
             except Exception as e:
                 print(f"Socket error: {e}")
                 break
@@ -81,7 +103,10 @@ class RawSocketStream:
 
     def stop(self):
         self.stopped = True
-        self.sock.close()
+        try:
+            self.sock.close()
+        except Exception:
+            pass
 
 def main():
     print(f"[NETWORK] Starting stream listener...", flush=True)
@@ -93,10 +118,10 @@ def main():
 
     time.sleep(1.0) 
 
-    print("[PIPELINE] Stream connected. Tracking locked to 15 FPS...", flush=True)
+    print("[PIPELINE] Stream connected. Tracking locked to 24 FPS...", flush=True)
 
     # 24 FPS Timing Math
-    TARGET_FPS = 15
+    TARGET_FPS = 24
     TARGET_FRAME_TIME = 1.0 / TARGET_FPS
 
     while True:
@@ -116,7 +141,7 @@ def main():
         ai_end_time = time.time()
         ai_ms = (ai_end_time - ai_start_time) * 1000
         
-        cv2.putText(annotated_frame, f"AI: {ai_ms:.1f} ms | Target: 15 FPS", (10, 30), 
+        cv2.putText(annotated_frame, f"AI: {ai_ms:.1f} ms | Target: 24 FPS", (10, 30), 
                     cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
         cv2.imshow(WINDOW_NAME, annotated_frame)

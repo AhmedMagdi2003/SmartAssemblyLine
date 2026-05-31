@@ -323,6 +323,7 @@ Use this order every time:
 7. Start `uvicorn src.dashboard.main:app --reload`
 8. Open `http://127.0.0.1:8000`
 9. Start `python scripts/run_pipeline.py`
+10. open pi with `ffmpeg -f v4l2 -input_format mjpeg -framerate 24 -video_size 640x480 -i /dev/video0 -c:v copy -f mjpeg "tcp://0.0.0.0:1234?listen&tcp_nodelay=1"`
 
 ## Option 1: One-Click Auto-Launcher (Recommended for Windows)
 

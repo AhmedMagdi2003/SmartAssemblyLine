@@ -242,7 +242,7 @@ class DashboardApiIntegrationTests(unittest.TestCase):
 
         from src.db.session import engine
 
-        cls._text = text
+        cls._text = staticmethod(text)
         cls._engine = engine
         cls._uuid_prefix = "TEST-DASHBOARD-INTEGRATION-"
         try:

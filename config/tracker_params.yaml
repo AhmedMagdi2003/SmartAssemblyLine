@@ -1,5 +1,5 @@
 model:
-  weights_path: "models/best.pt"
+  weights_path: "models/best.onnx"
   tracker_config: "botsort.yaml"
   confidence: 0.6
 

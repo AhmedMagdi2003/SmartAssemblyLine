@@ -84,6 +84,11 @@ manager = ConnectionManager()
 mqtt_loop_ref: Optional[asyncio.AbstractEventLoop] = None  # Will hold our main asyncio loop
 
 
+def _database_error_response(default_payload, exc):
+    print(f"[WARNING] Dashboard database query failed: {exc}")
+    return {**default_payload, "source": "database_error", "error": str(exc)}
+
+
 def _parse_limit(limit_raw, default=50, maximum=5000):
     if limit_raw is None:
         return default
@@ -172,11 +177,14 @@ async def get_recent_events(
         shift=shift,
         shift_date=shift_date,
     )
-    events = list_recent_box_events(
-        limit=_parse_limit(limit),
-        shift=resolved_shift,
-        shift_date=resolved_shift_date,
-    )
+    try:
+        events = list_recent_box_events(
+            limit=_parse_limit(limit),
+            shift=resolved_shift,
+            shift_date=resolved_shift_date,
+        )
+    except Exception as exc:
+        return _database_error_response({"events": []}, exc)
     events.reverse()
     return {"events": events, "source": "database"}
 
@@ -186,7 +194,10 @@ async def get_latest_event():
     if get_latest_box_event is None:
         return {"event": None, "source": "unavailable"}
 
-    return {"event": get_latest_box_event(), "source": "database"}
+    try:
+        return {"event": get_latest_box_event(), "source": "database"}
+    except Exception as exc:
+        return _database_error_response({"event": None}, exc)
 
 
 @app.get("/api/kpis/current")
@@ -194,7 +205,10 @@ async def get_current_dashboard_kpis():
     if get_current_kpis is None:
         return {"kpis": None, "source": "unavailable"}
 
-    return {"kpis": get_current_kpis(), "source": "database"}
+    try:
+        return {"kpis": get_current_kpis(), "source": "database"}
+    except Exception as exc:
+        return _database_error_response({"kpis": None}, exc)
 
 
 @app.get("/api/stats/shifts")
@@ -202,7 +216,10 @@ async def get_shift_stats(limit: int = 10):
     if get_shift_summary is None:
         return {"shifts": [], "source": "unavailable"}
 
-    return {"shifts": get_shift_summary(limit=max(1, min(limit, 100))), "source": "database"}
+    try:
+        return {"shifts": get_shift_summary(limit=max(1, min(limit, 100))), "source": "database"}
+    except Exception as exc:
+        return _database_error_response({"shifts": []}, exc)
 
 
 @app.get("/api/charts/overview")
@@ -225,14 +242,24 @@ async def get_chart_data(
         shift=shift,
         shift_date=shift_date,
     )
-    return {
-        **get_chart_overview(
-            limit=_parse_limit(limit),
-            shift=resolved_shift,
-            shift_date=resolved_shift_date,
-        ),
-        "source": "database",
-    }
+    try:
+        return {
+            **get_chart_overview(
+                limit=_parse_limit(limit),
+                shift=resolved_shift,
+                shift_date=resolved_shift_date,
+            ),
+            "source": "database",
+        }
+    except Exception as exc:
+        return _database_error_response(
+            {
+                "orientation": [],
+                "transit": [],
+                "volume": [],
+            },
+            exc,
+        )
 
 
 @app.get("/api/health")

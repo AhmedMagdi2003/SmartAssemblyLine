@@ -8,6 +8,7 @@ RUNTIME_DIR="$PROJECT_ROOT/data/runtime"
 PID_DIR="$RUNTIME_DIR/pids"
 LOG_DIR="$RUNTIME_DIR/logs"
 CONDA_ENV_NAME="${SMART_ASSEMBLY_CONDA_ENV:-torch}"
+CONDA_SH_PATH=""
 
 NO_INFRA=0
 NO_LOGGER=0
@@ -70,13 +71,15 @@ mkdir -p "$PID_DIR" "$LOG_DIR"
 
 activate_conda() {
   if [[ -n "${CONDA_EXE:-}" ]]; then
+    CONDA_SH_PATH="$(dirname "$(dirname "$CONDA_EXE")")/etc/profile.d/conda.sh"
     # shellcheck disable=SC1091
-    source "$(dirname "$(dirname "$CONDA_EXE")")/etc/profile.d/conda.sh"
+    source "$CONDA_SH_PATH"
   elif command -v conda >/dev/null 2>&1; then
     local conda_base
     conda_base="$(conda info --base)"
+    CONDA_SH_PATH="$conda_base/etc/profile.d/conda.sh"
     # shellcheck disable=SC1090
-    source "$conda_base/etc/profile.d/conda.sh"
+    source "$CONDA_SH_PATH"
   else
     echo "Conda was not found. Open WSL in an environment where conda is available." >&2
     exit 1
@@ -120,9 +123,15 @@ start_background_service() {
   fi
 
   echo "Starting $name..."
-  nohup bash -lc "cd \"$PROJECT_ROOT\" && source \"$(dirname "$(dirname "$CONDA_EXE")")/etc/profile.d/conda.sh\" && conda activate \"$CONDA_ENV_NAME\" && $command" >"$log_file" 2>&1 &
+  nohup bash -lc "cd \"$PROJECT_ROOT\" && source \"$CONDA_SH_PATH\" && conda activate \"$CONDA_ENV_NAME\" && $command" >"$log_file" 2>&1 &
   local service_pid=$!
   echo "$service_pid" >"$pid_file"
+  sleep 1
+  if ! kill -0 "$service_pid" >/dev/null 2>&1; then
+    echo "$name failed to stay running. Last log lines:" >&2
+    tail -n 40 "$log_file" >&2 || true
+    exit 1
+  fi
   echo "$name started with PID $service_pid"
   echo "Log: $log_file"
 }
@@ -148,11 +157,11 @@ if [[ "$NO_INFRA" -eq 0 ]]; then
 fi
 
 if [[ "$NO_LOGGER" -eq 0 ]]; then
-  start_background_service "logger" "python src/utils/logger.py"
+  start_background_service "logger" "python -u src/utils/logger.py"
 fi
 
 if [[ "$NO_DASHBOARD" -eq 0 ]]; then
-  start_background_service "dashboard" "python -m uvicorn src.dashboard.main:app --host 0.0.0.0 --port 8000 --reload"
+  start_background_service "dashboard" "python -u -m uvicorn src.dashboard.main:app --host 0.0.0.0 --port 8000 --reload"
 fi
 
 echo

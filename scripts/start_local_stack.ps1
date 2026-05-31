@@ -1,91 +1,112 @@
-param(
-    [switch]$NoPipeline,
-    [switch]$NoDashboard,
+# scripts/start_local_stack.ps1
+
+param (
+    [string]$CondaEnv = "torch_win",
+    [switch]$NoInfra,
     [switch]$NoLogger,
-    [switch]$NoInfra
+    [switch]$NoDashboard,
+    [switch]$NoPipeline
 )
 
 $ErrorActionPreference = "Stop"
 
-$projectRoot = Split-Path -Parent $PSScriptRoot
-$composeFile = Join-Path $projectRoot "deployment\docker-compose.local.yml"
+# Setup Paths
+$ProjectRoot = Resolve-Path "$PSScriptRoot\.."
+$ComposeFile = "$ProjectRoot\deployment\docker-compose.local.yml"
+$RuntimeDir = "$ProjectRoot\data\runtime"
+$PidDir = "$RuntimeDir\pids"
+$LogDir = "$RuntimeDir\logs"
 
-function Invoke-InProject([string]$Command) {
-    Push-Location $projectRoot
-    try {
-        Invoke-Expression $Command
-    }
-    finally {
-        Pop-Location
-    }
-}
+# Create directories if they don't exist
+if (-not (Test-Path $PidDir)) { New-Item -ItemType Directory -Force -Path $PidDir | Out-Null }
+if (-not (Test-Path $LogDir)) { New-Item -ItemType Directory -Force -Path $LogDir | Out-Null }
 
-function Start-ServiceWindow([string]$Title, [string]$Command) {
-    $windowCommand = @"
-`$Host.UI.RawUI.WindowTitle = '$Title'
-Set-Location '$projectRoot'
-$Command
-"@
+Set-Location $ProjectRoot
 
-    Start-Process powershell -ArgumentList @(
-        "-NoExit",
-        "-ExecutionPolicy", "Bypass",
-        "-Command", $windowCommand
-    ) | Out-Null
-}
+Write-Host "Project root: $ProjectRoot"
+Write-Host "Assuming active Conda environment: $CondaEnv"
 
-function Wait-ForDockerService([string]$ContainerName, [int]$TimeoutSeconds = 60) {
-    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
-    while ((Get-Date) -lt $deadline) {
-        $status = docker inspect -f "{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}" $ContainerName 2>$null
-        if ($LASTEXITCODE -eq 0 -and ($status -eq "healthy" -or $status -eq "running")) {
-            return
-        }
-        Start-Sleep -Seconds 2
-    }
-
-    throw "Timed out waiting for container '$ContainerName'."
-}
-
-Write-Host "Project root: $projectRoot"
-
+# --- INFRASTRUCTURE (Docker + DB) ---
 if (-not $NoInfra) {
     Write-Host "Starting PostgreSQL and Mosquitto with Docker Compose..."
-    Invoke-InProject "docker compose -f `"$composeFile`" up -d"
+    docker compose -f $ComposeFile up -d
 
     Write-Host "Waiting for PostgreSQL..."
-    Wait-ForDockerService -ContainerName "smart-assembly-db" -TimeoutSeconds 90
+    $deadline = (Get-Date).AddSeconds(90)
+    $dbReady = $false
+    while ((Get-Date) -lt $deadline) {
+        $status = docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' smart-assembly-db 2>$null
+        if ($status -match "healthy|running") { $dbReady = $true; break }
+        Start-Sleep -Seconds 2
+    }
+    if (-not $dbReady) { Write-Error "Timed out waiting for DB."; exit 1 }
 
     Write-Host "Waiting for MQTT broker..."
-    Wait-ForDockerService -ContainerName "smart-assembly-mqtt" -TimeoutSeconds 30
+    $deadline = (Get-Date).AddSeconds(30)
+    $mqttReady = $false
+    while ((Get-Date) -lt $deadline) {
+        $status = docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' smart-assembly-mqtt 2>$null
+        if ($status -match "healthy|running") { $mqttReady = $true; break }
+        Start-Sleep -Seconds 2
+    }
+    if (-not $mqttReady) { Write-Error "Timed out waiting for MQTT."; exit 1 }
 
     Write-Host "Applying Alembic migrations..."
-    Invoke-InProject "python -m alembic upgrade head"
+    python -m alembic upgrade head
+}
+
+# --- BACKGROUND SERVICES ---
+function Start-BackgroundService {
+    param($name, $argsList)
+    $logFile = "$LogDir\$name.log"
+    $errFile = "$LogDir\$name.err.log" # NEW: Separate file for errors
+    $pidFile = "$PidDir\$name.pid"
+
+    # Check if already running
+    if (Test-Path $pidFile) {
+        $existingPid = Get-Content $pidFile
+        if (Get-Process -Id $existingPid -ErrorAction SilentlyContinue) {
+            Write-Host "$name is already running with PID $existingPid"
+            return
+        }
+        Remove-Item $pidFile # Cleanup stale PID file
+    }
+
+    Write-Host "Starting $name..."
+    
+    # FIX: Route StandardOutput and StandardError to two different files
+    $proc = Start-Process -FilePath "python" -ArgumentList $argsList -RedirectStandardOutput $logFile -RedirectStandardError $errFile -WindowStyle Hidden -PassThru
+    $proc.Id | Out-File -FilePath $pidFile -Encoding ASCII
+    
+    Start-Sleep -Seconds 1
+    if (-not (Get-Process -Id $proc.Id -ErrorAction SilentlyContinue)) {
+        Write-Error "$name failed to stay running. Check the error log: $errFile"
+        exit 1
+    }
+    
+    Write-Host "$name started with PID $($proc.Id)"
+    Write-Host "Logs: $logFile (Output) | $errFile (Errors)"
 }
 
 if (-not $NoLogger) {
-    Write-Host "Starting logger window..."
-    Start-ServiceWindow -Title "Smart Assembly Logger" -Command "python src/utils/logger.py"
+    Start-BackgroundService -name "logger" -argsList @("-u", "src\utils\logger.py")
 }
 
 if (-not $NoDashboard) {
-    Write-Host "Starting dashboard window..."
-    Start-ServiceWindow -Title "Smart Assembly Dashboard" -Command "python -m uvicorn src.dashboard.main:app --host 0.0.0.0 --port 8000 --reload"
+    Start-BackgroundService -name "dashboard" -argsList @("-u", "-m", "uvicorn", "src.dashboard.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload")
 }
 
-if (-not $NoPipeline) {
-    Write-Host "Starting vision pipeline window..."
-    Start-ServiceWindow -Title "Smart Assembly Pipeline" -Command "python scripts/run_pipeline.py"
-}
-
-Write-Host ""
-Write-Host "Local stack is starting."
+# --- SUMMARY ---
+Write-Host "`nLocal stack is starting." -ForegroundColor Green
 Write-Host "Dashboard: http://127.0.0.1:8000"
 Write-Host "PostgreSQL: localhost:5433"
 Write-Host "MQTT Broker: localhost:1883"
-Write-Host ""
-Write-Host "Optional flags:"
-Write-Host "  -NoInfra      Skip docker compose + migrations"
-Write-Host "  -NoLogger     Do not open the logger window"
-Write-Host "  -NoDashboard  Do not open the dashboard window"
-Write-Host "  -NoPipeline   Do not open the pipeline window"
+Write-Host "Logs directory: $LogDir`n"
+
+# --- PIPELINE ---
+if (-not $NoPipeline) {
+    Write-Host "Starting vision pipeline in the current terminal..." -ForegroundColor Cyan
+    python scripts\run_pipeline.py
+} else {
+    Write-Host "Pipeline not started because -NoPipeline was used."
+}

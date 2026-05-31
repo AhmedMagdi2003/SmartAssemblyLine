@@ -58,8 +58,11 @@ class DatabaseRepositoryTests(unittest.TestCase):
                 "status": "COMPLETED",
             }
 
-            self.assertTrue(save_box_event(payload, session_factory=SessionLocal))
-            self.assertFalse(save_box_event(payload, session_factory=SessionLocal))
+            try:
+                self.assertTrue(save_box_event(payload, session_factory=SessionLocal))
+                self.assertFalse(save_box_event(payload, session_factory=SessionLocal))
+            finally:
+                engine.dispose()
 
     def test_get_shift_event_count_uses_uuid_shift_date_prefix(self):
         with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parents[1] / "data" / "test_tmp") as temp_dir:
@@ -96,12 +99,15 @@ class DatabaseRepositoryTests(unittest.TestCase):
             session.commit()
             session.close()
 
-            count = get_shift_event_count(
-                "Night_Shift",
-                datetime.date(2026, 4, 4),
-                session_factory=SessionLocal,
-            )
-            self.assertEqual(count, 50)
+            try:
+                count = get_shift_event_count(
+                    "Night_Shift",
+                    datetime.date(2026, 4, 4),
+                    session_factory=SessionLocal,
+                )
+                self.assertEqual(count, 50)
+            finally:
+                engine.dispose()
 
     def test_get_current_kpis_uses_latest_shift_window_only(self):
         with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parents[1] / "data" / "test_tmp") as temp_dir:
@@ -148,11 +154,14 @@ class DatabaseRepositoryTests(unittest.TestCase):
             session.commit()
             session.close()
 
-            kpis = get_current_kpis(session_factory=SessionLocal)
-            self.assertEqual(kpis["current_shift"], "Morning_Shift")
-            self.assertEqual(kpis["shift_date"], "2026-04-04")
-            self.assertEqual(kpis["shift_volume"], 2)
-            self.assertEqual(kpis["average_transit_time_sec"], 1.25)
+            try:
+                kpis = get_current_kpis(session_factory=SessionLocal)
+                self.assertEqual(kpis["current_shift"], "Morning_Shift")
+                self.assertEqual(kpis["shift_date"], "2026-04-04")
+                self.assertEqual(kpis["shift_volume"], 2)
+                self.assertEqual(kpis["average_transit_time_sec"], 1.25)
+            finally:
+                engine.dispose()
 
 
 if __name__ == "__main__":

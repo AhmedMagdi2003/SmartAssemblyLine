@@ -21,6 +21,17 @@ class OrientationTests(unittest.TestCase):
                 angle = calculate_box_angle(frame, 20, 20, 220, 220)
                 self.assertAlmostEqual(angle, expected, delta=2.5)
 
+    def test_motion_blurred_carton_angle_is_recovered(self):
+        blur_kernel = np.zeros((1, 19), dtype=np.float32)
+        blur_kernel[0, :] = 1.0 / blur_kernel.shape[1]
+
+        for expected in (15, 30, -20, -45):
+            with self.subTest(expected=expected):
+                frame = make_test_frame(expected)
+                blurred = cv2.filter2D(frame, -1, blur_kernel)
+                angle = calculate_box_angle(blurred, 20, 20, 220, 220)
+                self.assertAlmostEqual(angle, expected, delta=3.0)
+
     def test_empty_roi_returns_zero(self):
         frame = np.zeros((120, 120, 3), dtype=np.uint8)
         self.assertEqual(calculate_box_angle(frame, 150, 150, 200, 200), 0.0)

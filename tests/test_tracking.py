@@ -130,5 +130,47 @@ class AssemblyLineTrackerTests(unittest.TestCase):
             tracker.process_frame(frame.copy(), draw_annotations=False, frame_timestamp=2.5)
             self.assertEqual(len(streamer.broadcasts), 1)
 
+    def test_static_overlays_remain_visible_without_active_tracks(self):
+        config = {
+            "model": {
+                "weights_path": "models/best.pt",
+                "tracker_config": "botsort.yaml",
+                "confidence": 0.5,
+            },
+            "roi": {
+                "polygon": [[10, 10], [110, 10], [110, 80], [10, 80]],
+                "finish_line_y": 60,
+            },
+            "filters": {
+                "min_box_area": 100,
+                "min_lifespan_sec": 1.0,
+            },
+            "shifts": [
+                {"name": "Morning_Shift", "start_hour": 6, "end_hour": 14},
+            ],
+        }
+
+        model = SequenceModel([[FakeResult([], None)]])
+        frame = np.zeros((120, 140, 3), dtype=np.uint8)
+
+        config_path = TEMP_ROOT / f"tracker_overlay_case_{uuid.uuid4().hex}.yaml"
+        config_path.write_text(yaml.safe_dump(config), encoding="utf-8")
+
+        tracker = AssemblyLineTracker(
+            config_path=str(config_path),
+            model=model,
+            analytics=FakeAnalytics(),
+            streamer=FakeStreamer(),
+        )
+
+        annotated_frame, active_boxes = tracker.process_frame(
+            frame.copy(),
+            draw_annotations=True,
+            frame_timestamp=0.0,
+        )
+
+        self.assertEqual(active_boxes, [])
+        self.assertGreater(int(np.count_nonzero(annotated_frame)), 0)
+
 if __name__ == "__main__":
     unittest.main()

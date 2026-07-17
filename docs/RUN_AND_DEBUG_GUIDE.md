@@ -23,7 +23,7 @@ Make sure these files exist:
 
 ```text
 models/best.pt
-data/videos/conveyor.mp4
+data/videos/videoproject 1.mp4
 config/tracker_params.yaml
 config/botsort.yaml
 .env
@@ -33,10 +33,10 @@ config/botsort.yaml
 
 The project is PostgreSQL-only.
 
-### Start Docker Postgres
+### Start Docker Postgres and Mosquitto
 
 ```bash
-docker compose -f deployment/docker-compose.db.yml up -d
+docker compose -f deployment/docker-compose.local.yml up -d
 ```
 
 Database connection used by the project:
@@ -114,7 +114,7 @@ python scripts/run_pipeline.py
 
 ## Option 1: One-Command Local Stack
 
-For the workflow where the Raspberry Pi 4 provides camera + ROS and the PC runs the remaining services locally, use:
+For the workflow where the Raspberry Pi 4 or local video provides camera frames and the PC runs the remaining services locally, use:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/start_local_stack.ps1

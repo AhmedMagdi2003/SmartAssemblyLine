@@ -87,7 +87,6 @@ SmartAssemblyLine/
 │   ├── test_tmp/
 │   └── videos/
 ├── deployment/
-│   ├── docker-compose.db.yml
 │   ├── docker-compose.local.yml
 │   └── mosquitto/
 │       └── mosquitto.conf
@@ -209,7 +208,7 @@ Before running the project, confirm that these files exist:
 - YOLO weights: `models/best.pt`
 - Tracking config: `config/botsort.yaml`
 - Main tracker config: `config/tracker_params.yaml`
-- Test video: `data/videos/conveyor.mp4`
+- Demo video: `data/videos/videoproject 1.mp4`
 
 ## Configuration
 
@@ -237,13 +236,13 @@ cd /mnt/d/Machine_Learning/Vision/SmartAssemblyLine
 conda activate torch
 ```
 
-### Terminal 2. Start PostgreSQL in Docker
+### Terminal 2. Start PostgreSQL and Mosquitto in Docker
 
 ```bash
-docker compose -f deployment/docker-compose.db.yml up -d
+docker compose -f deployment/docker-compose.local.yml up -d
 ```
 
-This starts a local PostgreSQL container with:
+This starts a local PostgreSQL container and a local Mosquitto MQTT broker. The database uses:
 
 ```text
 host: localhost
@@ -739,7 +738,7 @@ The tests cover:
 ### Pipeline does not detect anything
 
 - check that `models/best.pt` exists
-- verify `data/videos/conveyor.mp4` exists
+- verify `data/videos/videoproject 1.mp4` exists
 - confirm ROI points in `config/tracker_params.yaml` match your video
 - lower the confidence threshold if needed
 

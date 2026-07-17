@@ -214,26 +214,22 @@ Purpose:
 - Raspberry Pi or future camera source can remain separate
 - local PC runs DB, broker, logger, dashboard, and pipeline
 
-### 10. Future Raspberry Pi + ROS2 prep
+### 10. Raspberry Pi camera integration prep
 
 Completed:
 
-- ROS2 bridge package scaffold added for future Pi work
-- this was done without changing the current test-video pipeline
-
-Main folder:
-
-- [ros2/smart_assembly_camera_bridge](/D:/Machine_Learning/Vision/SmartAssemblyLine/ros2/smart_assembly_camera_bridge)
+- Raspberry Pi camera integration was planned as a future extension
+- the current delivery path remains focused on the local video pipeline and dashboard stack
 
 Purpose:
 
-- keep a future integration path for Raspberry Pi camera + ROS2
+- keep a future integration path for a Raspberry Pi camera feed
 - avoid blocking current local testing
 
 Important note:
 
 - Raspberry Pi runtime is not the active production path yet
-- current active test path still uses `data/videos/conveyor.mp4`
+- current active test path still uses `data/videos/videoproject 1.mp4`
 
 ### 11. Option 3 deployment: hybrid Google Cloud
 
@@ -320,14 +316,13 @@ This section is important. These are the current weak points and incomplete area
 
 Current state:
 
-- ROS2 bridge scaffold exists
 - deployment planning exists
 - current pipeline still reads local test video
 
 Gap:
 
 - no finalized Pi camera stream ingestion into the real pipeline yet
-- no production RTSP/ROS2 bridge validated end-to-end with the existing tracker
+- no production camera stream bridge validated end-to-end with the existing tracker
 
 ### 2. Cloud deployment is prepared but not fully validated end-to-end
 

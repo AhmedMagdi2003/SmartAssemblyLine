@@ -1,16 +1,15 @@
 model:
-  weights_path: "models/best.onnx"
+  weights_path: "models/best2.onnx"
   tracker_config: "botsort.yaml"
   confidence: 0.6
-
 roi:
   # Polygon points calibrated from ROICalibration.py
-  polygon: [[42, 302], [353, 261], [1272, 557], [771, 692]]
-  finish_line_y: 400
+  polygon: [[728, 124], [252, 1024], [1680, 1045], [1300, 153], [722, 124]]
+  finish_line_y: 600
 
 filters:
-  min_box_area: 8000
-  min_lifespan_sec: 1.0
+  min_box_area: 5
+  min_lifespan_sec: 0
 shifts:
   - name: "Morning_Shift"
     start_hour: 6

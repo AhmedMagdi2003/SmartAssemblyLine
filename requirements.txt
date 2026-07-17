@@ -1,5 +1,4 @@
 opencv-python==4.13.0.92
-roboflow==1.2.16
 ultralytics==8.4.21
 torch==2.4.1
 torchvision==0.19.1 

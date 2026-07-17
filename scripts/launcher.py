@@ -127,46 +127,65 @@ def main():
     dashboard_log = open(os.path.join(log_dir, "dashboard.log"), "w", encoding="utf-8")
     dashboard_err = open(os.path.join(log_dir, "dashboard.err.log"), "w", encoding="utf-8")
 
-    print("[STARTUP] Launching Logger background service...")
-    logger_proc = subprocess.Popen(
-        [python_exe, "-u", "src/utils/logger.py"],
-        stdout=logger_log,
-        stderr=logger_err
-    )
-
-    print("[STARTUP] Launching Dashboard backend (FastAPI)...")
-    dashboard_proc = subprocess.Popen(
-        [python_exe, "-u", "-m", "uvicorn", "src.dashboard.main:app", "--host", "0.0.0.0", "--port", "8000"],
-        stdout=dashboard_log,
-        stderr=dashboard_err
-    )
-
-    # Allow services to initialize
-    time.sleep(2)
-    if logger_proc.poll() is not None:
-        print("[ERROR] Logger service failed to stay running. Check data/runtime/logs/logger.err.log")
-        sys.exit(1)
-    if dashboard_proc.poll() is not None:
-        print("[ERROR] Dashboard service failed to stay running. Check data/runtime/logs/dashboard.err.log")
-        sys.exit(1)
-
-    # 7. Open Dashboard in Browser
-    print("[STARTUP] Opening dashboard in browser: http://localhost:8000")
-    webbrowser.open("http://localhost:8000")
-
-    # 8. Start Vision Pipeline
-    print("[PIPELINE] Starting vision tracking pipeline window...")
-    print("=" * 60)
-    print("   TO QUIT: Press 'q' in the Production Tracker window,")
-    print("            or close the CV2 window, or press Ctrl+C in this console.")
-    print("=" * 60)
+    logger_proc = None
+    dashboard_proc = None
 
     try:
-        subprocess.run([python_exe, "scripts/run_pipeline.py"], check=True)
-    except KeyboardInterrupt:
-        print("\n[SHUTDOWN] Interrupted by user via console.")
-    except subprocess.CalledProcessError as e:
-        print(f"\n[PIPELINE] Exited with code {e.returncode}.")
+        print("[STARTUP] Launching Logger background service...")
+        logger_proc = subprocess.Popen(
+            [python_exe, "-u", "src/utils/logger.py"],
+            stdout=logger_log,
+            stderr=logger_err
+        )
+
+        print("[STARTUP] Launching Dashboard backend (FastAPI)...")
+        dashboard_proc = subprocess.Popen(
+            [python_exe, "-u", "-m", "uvicorn", "src.dashboard.main:app", "--host", "0.0.0.0", "--port", "8000"],
+            stdout=dashboard_log,
+            stderr=dashboard_err
+        )
+
+        # Allow services to initialize
+        time.sleep(2)
+        if logger_proc.poll() is not None:
+            print("[ERROR] Logger service failed to stay running. Check data/runtime/logs/logger.err.log")
+            sys.exit(1)
+        if dashboard_proc.poll() is not None:
+            print("[ERROR] Dashboard service failed to stay running. Check data/runtime/logs/dashboard.err.log")
+            sys.exit(1)
+
+        # 7. Open Dashboard in Browser
+        print("[STARTUP] Opening dashboard in browser: http://localhost:8000")
+        webbrowser.open("http://localhost:8000")
+
+        no_pipeline = "--no-pipeline" in sys.argv
+
+        if no_pipeline:
+            print("\n" + "=" * 60)
+            print("   [STARTUP] Infrastructure is running (Database, MQTT, Dashboard, Logger).")
+            print("   [STARTUP] Pipeline is disabled because --no-pipeline was passed.")
+            print("   [STARTUP] You can now run calibration or other scripts in a separate terminal:")
+            print("             python scripts/run_calibration.py")
+            print("   [STARTUP] Press Enter in this window to shut down background services...")
+            print("=" * 60 + "\n")
+            try:
+                input()
+            except (KeyboardInterrupt, EOFError):
+                print("\n[SHUTDOWN] Shutting down launcher...")
+        else:
+            # 8. Start Vision Pipeline
+            print("[PIPELINE] Starting vision tracking pipeline window...")
+            print("=" * 60)
+            print("   TO QUIT: Press 'q' in the Production Tracker window,")
+            print("            or close the CV2 window, or press Ctrl+C in this console.")
+            print("=" * 60)
+
+            try:
+                subprocess.run([python_exe, "scripts/run_pipeline.py"], check=True)
+            except KeyboardInterrupt:
+                print("\n[SHUTDOWN] Interrupted by user via console.")
+            except subprocess.CalledProcessError as e:
+                print(f"\n[PIPELINE] Exited with code {e.returncode}.")
     finally:
         print("[SHUTDOWN] Shutting down background services...")
         # Terminate processes

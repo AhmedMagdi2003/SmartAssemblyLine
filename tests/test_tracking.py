@@ -172,5 +172,61 @@ class AssemblyLineTrackerTests(unittest.TestCase):
         self.assertEqual(active_boxes, [])
         self.assertGreater(int(np.count_nonzero(annotated_frame)), 0)
 
+    def test_orientation_failure_does_not_stop_counting(self):
+        config = {
+            "model": {
+                "weights_path": "models/best.pt",
+                "tracker_config": "botsort.yaml",
+                "confidence": 0.5,
+            },
+            "roi": {
+                "polygon": [[0, 0], [100, 0], [100, 100], [0, 100]],
+                "finish_line_y": 50,
+            },
+            "filters": {
+                "min_box_area": 100,
+                "min_lifespan_sec": 0.0,
+            },
+            "shifts": [
+                {"name": "Morning_Shift", "start_hour": 6, "end_hour": 14},
+            ],
+        }
+
+        model = SequenceModel(
+            [
+                [FakeResult([[10, 10, 40, 40]], [7])],
+                [FakeResult([[10, 60, 40, 90]], [7])],
+            ]
+        )
+        analytics = FakeAnalytics()
+        streamer = FakeStreamer()
+        frame = np.zeros((120, 140, 3), dtype=np.uint8)
+
+        config_path = TEMP_ROOT / f"tracker_orientation_error_{uuid.uuid4().hex}.yaml"
+        config_path.write_text(yaml.safe_dump(config), encoding="utf-8")
+
+        tracker = AssemblyLineTracker(
+            config_path=str(config_path),
+            model=model,
+            analytics=analytics,
+            streamer=streamer,
+        )
+
+        with patch("src.core.tracking.calculate_box_angle", side_effect=RuntimeError("bad crop")):
+            tracker.process_frame(
+                frame.copy(),
+                draw_annotations=False,
+                frame_timestamp=0.0,
+            )
+            _, active_boxes = tracker.process_frame(
+                frame.copy(),
+                draw_annotations=False,
+                frame_timestamp=1.0,
+            )
+
+        self.assertEqual(len(streamer.broadcasts), 1)
+        self.assertEqual(streamer.broadcasts[0]["orientation_deg"], 0.0)
+        self.assertEqual(active_boxes[0]["angle"], 0.0)
+
 if __name__ == "__main__":
     unittest.main()

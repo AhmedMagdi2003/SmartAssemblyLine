@@ -1,4 +1,5 @@
 import importlib.util
+import os
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
@@ -26,6 +27,10 @@ class DashboardTemplateTests(unittest.TestCase):
             "/ws",
             "current_shift_only",
             "/api/kpis/current",
+            "Turn On Project",
+            "/api/project/status",
+            "/api/project/start",
+            "/api/project/stop",
         ):
             self.assertIn(fragment, html)
 
@@ -183,6 +188,126 @@ class DashboardApiTests(unittest.TestCase):
                 health_response = client.get("/api/health")
                 self.assertEqual(health_response.status_code, 200)
                 self.assertIn(health_response.json()["database"], {"connected", "error", "unavailable"})
+
+    def test_project_control_api_uses_pipeline_and_serial_helpers(self):
+        from fastapi.testclient import TestClient
+        from src.dashboard import main
+
+        pipeline_status = {
+            "running": False,
+            "pid": None,
+            "logs": {"stdout": "pipeline.log", "stderr": "pipeline.err.log"},
+            "serial": {"configured": False, "available": False, "port": None},
+            "mqtt_control": {
+                "configured": True,
+                "available": True,
+                "host": "localhost",
+                "port": 1883,
+                "topic": "phone/test",
+            },
+        }
+        started_status = {
+            **pipeline_status,
+            "running": True,
+            "pid": 1234,
+        }
+        stopped_status = {
+            **pipeline_status,
+            "running": False,
+            "pid": None,
+        }
+
+        with patch.object(main, "mqtt", None), patch.object(
+            main,
+            "_pipeline_status",
+            return_value=pipeline_status,
+        ) as status_mock, patch.object(
+            main,
+            "_start_pipeline_process",
+            return_value={"status": "started", **started_status},
+        ) as start_mock, patch.object(
+            main,
+            "_stop_pipeline_process",
+            return_value={"status": "stopped", **stopped_status},
+        ) as stop_mock, patch.object(
+            main,
+            "_send_project_control_command",
+            side_effect=[
+                {"status": "sent", "command": "on"},
+                {"status": "sent", "command": "off"},
+            ],
+        ) as control_mock:
+            with TestClient(main.app) as client:
+                status_response = client.get("/api/project/status")
+                self.assertEqual(status_response.status_code, 200)
+                self.assertFalse(status_response.json()["running"])
+
+                start_response = client.post("/api/project/start")
+                self.assertEqual(start_response.status_code, 200)
+                self.assertTrue(start_response.json()["pipeline"]["running"])
+
+                stop_response = client.post("/api/project/stop")
+                self.assertEqual(stop_response.status_code, 200)
+                self.assertFalse(stop_response.json()["pipeline"]["running"])
+
+        status_mock.assert_called()
+        start_mock.assert_called_once()
+        stop_mock.assert_called()
+        control_mock.assert_any_call("on")
+        control_mock.assert_any_call("off")
+
+    def test_serial_command_is_skipped_when_port_is_not_configured(self):
+        from src.dashboard import main
+
+        with patch.dict(
+            os.environ,
+            {"MECHANICAL_SERIAL_PORT": "", "RASPBERRY_PI_SERIAL_PORT": ""},
+            clear=False,
+        ):
+            result = main._send_serial_command("turn on")
+
+        self.assertEqual(result["status"], "skipped")
+        self.assertEqual(result["reason"], "serial_port_not_configured")
+
+    def test_mqtt_control_command_uses_phone_test_topic(self):
+        from src.dashboard import main
+
+        class DummyPublishResult:
+            def wait_for_publish(self):
+                return None
+
+        dummy_client = SimpleNamespace(
+            connect=lambda host, port, keepalive: None,
+            loop_start=lambda: None,
+            publish=lambda topic, payload=None: DummyPublishResult(),
+            loop_stop=lambda: None,
+            disconnect=lambda: None,
+        )
+
+        mqtt_stub = SimpleNamespace(Client=lambda: dummy_client)
+
+        expected_settings = {
+            "host": "localhost",
+            "port": 1883,
+            "topic": "phone/test",
+            "username": None,
+            "password": None,
+            "keepalive": 60,
+            "tls_enabled": False,
+        }
+
+        with patch.object(main, "mqtt", mqtt_stub), patch.object(
+            main,
+            "MQTT_CONTROL_SETTINGS",
+            expected_settings,
+        ):
+            with patch("src.dashboard.main.configure_mqtt_client") as configure_mock:
+                result = main._send_mqtt_control_command("on")
+
+        configure_mock.assert_called_once_with(dummy_client, expected_settings)
+        self.assertEqual(result["status"], "sent")
+        self.assertEqual(result["command"], "on")
+        self.assertEqual(result["topic"], "phone/test")
 
     def test_dashboard_api_can_filter_to_current_shift_window(self):
         from fastapi.testclient import TestClient

@@ -10,12 +10,12 @@ import cv2
 import numpy as np
 import time
 
+from scripts.run_pipeline import open_capture_source, get_int_env
+
 points = []
 saved_polygon = []
 
 config_path = PROJECT_ROOT / "config" / "tracker_params.yaml"
-
-VIDEO_PATH = PROJECT_ROOT / "data" / "videos" / "videoproject 1.mp4"
 
 try:
     with open(config_path, "r", encoding="utf-8") as f:
@@ -73,25 +73,35 @@ def mouse_callback(event, x, y, flags, param):
         print(f"Removed point: {removed_point}")
 
 
-# Open local video
-stream = cv2.VideoCapture(str(VIDEO_PATH))
+stream, is_live_source = open_capture_source()
+max_missed_live_frames = get_int_env("VISION_MAX_MISSED_FRAMES", 90)
 
-if not stream.isOpened():
-    raise RuntimeError(
-        f"Could not open local video:\n{VIDEO_PATH}"
-    )
-
-print(f"Opened local video: {VIDEO_PATH}")
-
-cv2.namedWindow("Calibration Tool", cv2.WINDOW_NORMAL)
+cv2.namedWindow("Calibration Tool", cv2.WINDOW_AUTOSIZE)
 cv2.setMouseCallback("Calibration Tool", mouse_callback)
+
+missed_live_frames = 0
+window_size_logged = False
 
 while True:
     ret, frame = stream.read()
 
     if not ret or frame is None:
-        print("End of video reached.")
+        if is_live_source and missed_live_frames < max_missed_live_frames:
+            missed_live_frames += 1
+            time.sleep(0.1)
+            continue
+
+        if is_live_source:
+            print("Pi camera stream stopped returning frames.")
+        else:
+            print("End of video reached.")
         break
+
+    missed_live_frames = 0
+    if not window_size_logged:
+        frame_height, frame_width = frame.shape[:2]
+        print(f"Calibration window uses original frame size: {frame_width}x{frame_height}")
+        window_size_logged = True
 
     display_frame = frame.copy()
 

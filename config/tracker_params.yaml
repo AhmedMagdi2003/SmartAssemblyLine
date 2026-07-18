@@ -1,11 +1,12 @@
 model:
   weights_path: "models/best2.onnx"
   tracker_config: "botsort.yaml"
-  confidence: 0.6
+  confidence: 0.5
 roi:
   # Polygon points calibrated from ROICalibration.py
-  polygon: [[728, 124], [252, 1024], [1680, 1045], [1300, 153], [722, 124]]
-  finish_line_y: 600
+  polygon: [[626, 439], [9, 429], [188, 7], [462, 2], [633, 435]]
+  finish_line_y: 350
+
 
 filters:
   min_box_area: 5

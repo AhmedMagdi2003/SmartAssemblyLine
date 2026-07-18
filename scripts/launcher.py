@@ -18,6 +18,43 @@ def wait_for_port(port, timeout=90):
             time.sleep(1)
     return False
 
+
+def wait_for_port_to_close(port, timeout=20):
+    """Wait until a local port stops accepting TCP connections."""
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        try:
+            with socket.create_connection(("localhost", port), timeout=1):
+                time.sleep(1)
+        except OSError:
+            return True
+    return False
+
+
+def close_dashboard_exe_if_running():
+    """
+    If the standalone dashboard station is open, close it before the full
+    assembly launcher starts its own dashboard/backend services.
+    """
+    if os.name != "nt":
+        return
+
+    current_exe = os.path.basename(sys.executable).lower()
+    if current_exe == "smartassemblydashboard.exe":
+        return
+
+    print("[STARTUP] Checking for standalone dashboard station...")
+    result = subprocess.run(
+        ["taskkill", "/IM", "SmartAssemblyDashboard.exe", "/T", "/F"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    if result.returncode == 0:
+        print("[STARTUP] Closed SmartAssemblyDashboard.exe before full launch.")
+        if not wait_for_port_to_close(8000, timeout=20):
+            print("[WARNING] Dashboard port 8000 is still busy after closing the dashboard exe.")
+
+
 def main():
     print("=" * 60)
     print("        Smart Assembly Line - Auto Launcher")
@@ -40,6 +77,7 @@ def main():
         print(f"[STARTUP] Running from source, setting working directory to: {project_root}")
 
     print(f"[STARTUP] Using Python environment: {python_exe}")
+    close_dashboard_exe_if_running()
 
     # 2. Check if Docker is running
     print("[STARTUP] Verifying Docker Desktop is running...")
@@ -158,26 +196,15 @@ def main():
         print("[STARTUP] Opening dashboard in browser: http://localhost:8000")
         webbrowser.open("http://localhost:8000")
 
-        no_pipeline = "--no-pipeline" in sys.argv
+        auto_pipeline = "--no-pipeline" not in sys.argv
 
-        if no_pipeline:
-            print("\n" + "=" * 60)
-            print("   [STARTUP] Infrastructure is running (Database, MQTT, Dashboard, Logger).")
-            print("   [STARTUP] Pipeline is disabled because --no-pipeline was passed.")
-            print("   [STARTUP] You can now run calibration or other scripts in a separate terminal:")
-            print("             python scripts/run_calibration.py")
-            print("   [STARTUP] Press Enter in this window to shut down background services...")
-            print("=" * 60 + "\n")
-            try:
-                input()
-            except (KeyboardInterrupt, EOFError):
-                print("\n[SHUTDOWN] Shutting down launcher...")
-        else:
+        if auto_pipeline:
             # 8. Start Vision Pipeline
             print("[PIPELINE] Starting vision tracking pipeline window...")
             print("=" * 60)
             print("   TO QUIT: Press 'q' in the Production Tracker window,")
             print("            or close the CV2 window, or press Ctrl+C in this console.")
+            print("   Dashboard, logger, and Docker will stay up after the pipeline exits.")
             print("=" * 60)
 
             try:
@@ -186,15 +213,33 @@ def main():
                 print("\n[SHUTDOWN] Interrupted by user via console.")
             except subprocess.CalledProcessError as e:
                 print(f"\n[PIPELINE] Exited with code {e.returncode}.")
+
+        print("\n" + "=" * 60)
+        print("   [STARTUP] Control dashboard is running at http://localhost:8000")
+        if auto_pipeline:
+            print("   [STARTUP] The vision pipeline was started automatically.")
+        else:
+            print("   [STARTUP] Use the dashboard Turn On Project button to start detection.")
+        print("   [STARTUP] Use Turn Off Project to stop detection and send serial off.")
+        print("   [STARTUP] Press Enter in this window to shut down background services...")
+        print("=" * 60 + "\n")
+        try:
+            input()
+        except (KeyboardInterrupt, EOFError):
+            print("\n[SHUTDOWN] Shutting down launcher...")
     finally:
         print("[SHUTDOWN] Shutting down background services...")
         # Terminate processes
-        logger_proc.terminate()
-        dashboard_proc.terminate()
+        if logger_proc is not None and logger_proc.poll() is None:
+            logger_proc.terminate()
+        if dashboard_proc is not None and dashboard_proc.poll() is None:
+            dashboard_proc.terminate()
         
         time.sleep(1)
-        logger_proc.kill()
-        dashboard_proc.kill()
+        if logger_proc is not None and logger_proc.poll() is None:
+            logger_proc.kill()
+        if dashboard_proc is not None and dashboard_proc.poll() is None:
+            dashboard_proc.kill()
 
         logger_log.close()
         logger_err.close()

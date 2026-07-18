@@ -197,9 +197,16 @@ Default `.env` content:
 
 ```env
 DATABASE_URL=postgresql://smartassembly:smartassembly@localhost:5433/smart_assembly
+MQTT_HOST=localhost
+MQTT_PORT=1883
+MQTT_TOPIC=factory/assembly/boxes
+MQTT_CONTROL_HOST=localhost
+MQTT_CONTROL_PORT=1883
+MQTT_CONTROL_TOPIC=phone/test
 ```
 
 The app auto-loads `.env` from the project root, so you do not need to export the database URL manually in every terminal.
+The dashboard On/Off button publishes plain `on` and `off` strings to the Mosquitto control topic `phone/test`.
 
 ### 5. Prepare required assets
 
@@ -322,8 +329,7 @@ Use this order every time:
 7. Start `uvicorn src.dashboard.main:app --reload`
 8. Open `http://127.0.0.1:8000`
 9. Start `python scripts/run_pipeline.py`
-10. open pi with `ffmpeg -f v4l2 -input_format mjpeg -framerate 24 -video_size 640x480 -i /dev/video0 -c:v copy -f mjpeg "tcp://0.0.0.0:1234?listen&tcp_nodelay=1"`
-
+10. On the Raspberry Pi, start the camera stream with `ffmpeg -f v4l2 -input_format mjpeg -framerate 24 -video_size 640x480 -i /dev/video0 -c:v copy -f mjpeg "tcp://0.0.0.0:1234?listen&tcp_nodelay=1"`
 ## Option 1: One-Click Auto-Launcher (Recommended for Windows)
 
 For the easiest way to run the entire project (Docker setup, migrations, logger, web dashboard, and camera window), make sure **Docker Desktop** is open, and then do one of the following:
@@ -755,7 +761,7 @@ The tests cover:
 - The logger depends on MQTT and PostgreSQL.
 - The dashboard now supports both live MQTT updates and database-backed historical bootstrap.
 - CSV output is kept as a temporary backup path beside database persistence.
-- The current implementation is focused on analytics and monitoring, not actuator control.
+- The dashboard can now publish simple `on` / `off` MQTT control messages for a Raspberry Pi listener on `phone/test`.
 
 ## License
 

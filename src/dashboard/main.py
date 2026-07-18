@@ -1,16 +1,25 @@
 from contextlib import suppress
+from pathlib import Path
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 import asyncio
 import os
+import subprocess
+import sys
+import time
 from typing import List, Optional
 
 try:
     import paho.mqtt.client as mqtt
 except ImportError:
     mqtt = None
+
+try:
+    import serial
+except ImportError:
+    serial = None
 
 try:
     from src.db.repositories import (
@@ -35,10 +44,31 @@ except Exception:
     engine = None
     text = None
 
-from src.comms.mqtt_config import configure_mqtt_client, load_mqtt_settings
+from src.comms.mqtt_config import (
+    configure_mqtt_client,
+    load_mqtt_control_settings,
+    load_mqtt_settings,
+)
+
+try:
+    from dotenv import load_dotenv
+except ImportError:
+    load_dotenv = None
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if load_dotenv is not None:
+    load_dotenv(PROJECT_ROOT / ".env")
+
+RUNTIME_DIR = PROJECT_ROOT / "data" / "runtime"
+LOG_DIR = RUNTIME_DIR / "logs"
+PID_DIR = RUNTIME_DIR / "pids"
+PIPELINE_LOG = LOG_DIR / "pipeline.log"
+PIPELINE_ERR_LOG = LOG_DIR / "pipeline.err.log"
+PIPELINE_PID_FILE = PID_DIR / "pipeline.pid"
 
 app = FastAPI(title="Smart Assembly Line Dashboard")
 MQTT_SETTINGS = load_mqtt_settings()
+MQTT_CONTROL_SETTINGS = load_mqtt_control_settings()
 MQTT_ENABLED = os.getenv("MQTT_ENABLED", "true").strip().lower() not in {"0", "false", "no", "off"}
 
 # Allow the frontend to connect from anywhere during development
@@ -135,6 +165,198 @@ def _drain_broadcast_result(future):
     except Exception as exc:
         if not getattr(app.state, "is_shutting_down", False):
             print(f"[WARNING] Broadcast task failed: {exc}")
+
+
+def _env_flag(name, default=False):
+    raw_value = os.getenv(name)
+    if raw_value is None:
+        return default
+    return raw_value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _get_pipeline_process():
+    process = getattr(app.state, "pipeline_process", None)
+    if process is not None and process.poll() is None:
+        return process
+    return None
+
+
+def _clear_pipeline_pid():
+    with suppress(FileNotFoundError):
+        PIPELINE_PID_FILE.unlink()
+
+
+def _pipeline_status():
+    process = _get_pipeline_process()
+    running = process is not None
+    return {
+        "running": running,
+        "pid": process.pid if process is not None else None,
+        "logs": {
+            "stdout": str(PIPELINE_LOG),
+            "stderr": str(PIPELINE_ERR_LOG),
+        },
+        "serial": {
+            "configured": bool(
+                os.getenv("MECHANICAL_SERIAL_PORT")
+                or os.getenv("RASPBERRY_PI_SERIAL_PORT")
+            ),
+            "available": serial is not None,
+            "port": os.getenv("MECHANICAL_SERIAL_PORT")
+            or os.getenv("RASPBERRY_PI_SERIAL_PORT")
+            or None,
+        },
+        "mqtt_control": {
+            "configured": bool(MQTT_CONTROL_SETTINGS["topic"]),
+            "available": mqtt is not None,
+            "host": MQTT_CONTROL_SETTINGS["host"],
+            "port": MQTT_CONTROL_SETTINGS["port"],
+            "topic": MQTT_CONTROL_SETTINGS["topic"],
+        },
+    }
+
+
+def _send_serial_command(command):
+    """
+    Send a simple control string to the Raspberry Pi over serial.
+    Configure MECHANICAL_SERIAL_PORT, for example COM3 on Windows or /dev/ttyUSB0 on Linux.
+    """
+    port = os.getenv("MECHANICAL_SERIAL_PORT") or os.getenv("RASPBERRY_PI_SERIAL_PORT")
+    if not port:
+        return {"status": "skipped", "reason": "serial_port_not_configured"}
+
+    if serial is None:
+        return {"status": "skipped", "reason": "pyserial_not_installed"}
+
+    baudrate = int(os.getenv("MECHANICAL_SERIAL_BAUDRATE", "115200"))
+    timeout = float(os.getenv("MECHANICAL_SERIAL_TIMEOUT_SEC", "2"))
+    encoded = f"{command}\n".encode("utf-8")
+
+    try:
+        with serial.Serial(
+            port=port,
+            baudrate=baudrate,
+            timeout=timeout,
+            write_timeout=timeout,
+        ) as connection:
+            connection.write(encoded)
+            connection.flush()
+        return {"status": "sent", "command": command, "port": port}
+    except Exception as exc:
+        return {"status": "error", "command": command, "port": port, "error": str(exc)}
+
+
+def _send_mqtt_control_command(command):
+    """Publish a simple on/off control string to the Raspberry Pi over MQTT."""
+    topic = str(MQTT_CONTROL_SETTINGS.get("topic") or "").strip()
+    if not topic:
+        return {"status": "skipped", "reason": "mqtt_control_topic_not_configured"}
+
+    if mqtt is None:
+        return {"status": "skipped", "reason": "paho_mqtt_not_installed"}
+
+    client = mqtt.Client()
+
+    try:
+        configure_mqtt_client(client, MQTT_CONTROL_SETTINGS)
+        client.connect(
+            MQTT_CONTROL_SETTINGS["host"],
+            MQTT_CONTROL_SETTINGS["port"],
+            MQTT_CONTROL_SETTINGS["keepalive"],
+        )
+        client.loop_start()
+        publish_result = client.publish(topic, payload=command)
+        with suppress(Exception):
+            publish_result.wait_for_publish()
+        return {
+            "status": "sent",
+            "command": command,
+            "host": MQTT_CONTROL_SETTINGS["host"],
+            "port": MQTT_CONTROL_SETTINGS["port"],
+            "topic": topic,
+        }
+    except Exception as exc:
+        return {
+            "status": "error",
+            "command": command,
+            "host": MQTT_CONTROL_SETTINGS["host"],
+            "port": MQTT_CONTROL_SETTINGS["port"],
+            "topic": topic,
+            "error": str(exc),
+        }
+    finally:
+        with suppress(Exception):
+            client.loop_stop()
+        with suppress(Exception):
+            client.disconnect()
+
+
+def _send_project_control_command(command):
+    mqtt_result = _send_mqtt_control_command(command)
+    serial_result = _send_serial_command(f"turn {command}")
+
+    if mqtt_result["status"] == "sent" or serial_result["status"] == "sent":
+        status = "sent"
+    elif mqtt_result["status"] == "error" and serial_result["status"] == "error":
+        status = "error"
+    else:
+        status = "skipped"
+
+    return {
+        "status": status,
+        "command": command,
+        "mqtt": mqtt_result,
+        "serial": serial_result,
+    }
+
+
+def _start_pipeline_process():
+    existing = _get_pipeline_process()
+    if existing is not None:
+        return {"status": "already_running", **_pipeline_status()}
+
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    PID_DIR.mkdir(parents=True, exist_ok=True)
+
+    stdout_log = PIPELINE_LOG.open("a", encoding="utf-8")
+    stderr_log = PIPELINE_ERR_LOG.open("a", encoding="utf-8")
+    stdout_log.write(f"\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] Starting pipeline\n")
+    stdout_log.flush()
+
+    creationflags = 0
+    if os.name == "nt":
+        creationflags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+
+    process = subprocess.Popen(
+        [sys.executable, "-u", "scripts/run_pipeline.py"],
+        cwd=PROJECT_ROOT,
+        stdout=stdout_log,
+        stderr=stderr_log,
+        creationflags=creationflags,
+    )
+    stdout_log.close()
+    stderr_log.close()
+
+    app.state.pipeline_process = process
+    PIPELINE_PID_FILE.write_text(str(process.pid), encoding="utf-8")
+    return {"status": "started", **_pipeline_status()}
+
+
+def _stop_pipeline_process():
+    process = _get_pipeline_process()
+    if process is None:
+        _clear_pipeline_pid()
+        return {"status": "not_running", **_pipeline_status()}
+
+    process.terminate()
+    try:
+        process.wait(timeout=8)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait(timeout=5)
+
+    _clear_pipeline_pid()
+    return {"status": "stopped", **_pipeline_status()}
 
 # 2. The MQTT Callback (Runs in a background thread)
 def on_message(client, userdata, msg):
@@ -300,11 +522,31 @@ async def get_health():
     return response
 
 
+@app.get("/api/project/status")
+async def get_project_status():
+    return _pipeline_status()
+
+
+@app.post("/api/project/start")
+async def start_project():
+    pipeline = _start_pipeline_process()
+    mechanical = _send_project_control_command("on")
+    return {"pipeline": pipeline, "mechanical": mechanical}
+
+
+@app.post("/api/project/stop")
+async def stop_project():
+    pipeline = _stop_pipeline_process()
+    mechanical = _send_project_control_command("off")
+    return {"pipeline": pipeline, "mechanical": mechanical}
+
+
 # 3. Server Lifecycle (Starts/Stops MQTT safely)
 @app.on_event("startup")
 async def startup_event():
     global mqtt_loop_ref
     app.state.is_shutting_down = False
+    app.state.pipeline_process = None
     mqtt_loop_ref = asyncio.get_running_loop()  # Capture the async loop
 
     if mqtt is None:
@@ -351,6 +593,9 @@ async def shutdown_event():
             client.loop_stop()
         with suppress(Exception):
             client.disconnect()
+
+    with suppress(Exception):
+        _stop_pipeline_process()
 
 # 4. The WebSocket Endpoint
 @app.websocket("/ws")

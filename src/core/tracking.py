@@ -127,7 +127,15 @@ class AssemblyLineTracker:
 
             current_time = self.time_fn() if frame_timestamp is None else frame_timestamp
             lifespan = current_time - self.box_entry_times[track_id]
-            angle = calculate_box_angle(frame, x1, y1, x2, y2)
+            try:
+                angle = calculate_box_angle(frame, x1, y1, x2, y2)
+            except Exception as exc:
+                angle = 0.0
+                print(
+                    f"[WARNING] Orientation failed for track {track_id}; "
+                    f"using 0.0 deg. Error: {exc}",
+                    flush=True,
+                )
 
             if cy > self.finish_line_y and track_id not in self.box_exit_times:
                 if lifespan > self.min_lifespan:

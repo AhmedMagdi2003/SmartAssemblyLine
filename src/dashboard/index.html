@@ -67,6 +67,38 @@
         .status-badge.connected {
             background-color: var(--accent);
         }
+        .project-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 6px 8px;
+            background-color: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+        .project-btn {
+            background-color: var(--accent);
+            color: white;
+            border: none;
+            padding: 8px 14px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .project-btn.running {
+            background-color: var(--danger);
+        }
+        .project-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        .project-state {
+            min-width: 110px;
+            color: var(--text-muted);
+            font-size: 13px;
+            font-weight: 700;
+        }
         .export-btn,
         .history-btn {
             background-color: var(--primary);
@@ -204,6 +236,10 @@
                 <button id="view-current-shift" class="toggle-btn active" onclick="setViewMode('current_shift')">Current Shift</button>
                 <button id="view-all-history" class="toggle-btn" onclick="setViewMode('all_history')">All History</button>
             </div>
+            <div class="project-control">
+                <button id="project-toggle-btn" class="project-btn" onclick="toggleProject()">Turn On Project</button>
+                <span id="project-state" class="project-state">Checking...</span>
+            </div>
             <button class="export-btn" onclick="exportCSV()">Export Session CSV</button>
             <div id="conn-status" class="status-badge">DISCONNECTED</div>
         </div>
@@ -308,6 +344,8 @@
         let historyUseFullRange = false;
         let activeShift = null;
         let activeShiftDate = null;
+        let projectRunning = false;
+        let projectBusy = false;
 
         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const socket = new WebSocket(`${wsProtocol}//${window.location.host}/ws`);
@@ -679,6 +717,68 @@
             await loadEvents();
         }
 
+        function renderProjectControl(status) {
+            const button = document.getElementById('project-toggle-btn');
+            const label = document.getElementById('project-state');
+            projectRunning = Boolean(status && status.running);
+
+            button.textContent = projectRunning ? 'Turn Off Project' : 'Turn On Project';
+            button.classList.toggle('running', projectRunning);
+            button.disabled = projectBusy;
+
+            if (!status) {
+                label.textContent = 'Status unavailable';
+                return;
+            }
+
+            const mqttControl = status.mqtt_control || {};
+            const serial = status.serial || {};
+            const mqttText = mqttControl.configured
+                ? `MQTT ${mqttControl.topic}@${mqttControl.host}:${mqttControl.port}`
+                : 'MQTT control not set';
+            const serialText = serial.configured
+                ? ` | Serial ${serial.available ? 'ready' : 'missing'}`
+                : '';
+            label.textContent = `${projectRunning ? 'Project ON' : 'Project OFF'} | ${mqttText}${serialText}`;
+        }
+
+        async function refreshProjectStatus() {
+            try {
+                const response = await fetch('/api/project/status');
+                renderProjectControl(await response.json());
+            } catch (error) {
+                console.warn('Could not load project status', error);
+                renderProjectControl(null);
+            }
+        }
+
+        async function toggleProject() {
+            if (projectBusy) {
+                return;
+            }
+
+            projectBusy = true;
+            renderProjectControl({ running: projectRunning, serial: {} });
+
+            try {
+                const endpoint = projectRunning ? '/api/project/stop' : '/api/project/start';
+                const response = await fetch(endpoint, { method: 'POST' });
+                const payload = await response.json();
+                const pipeline = payload.pipeline || {};
+                renderProjectControl(pipeline);
+
+                const mechanical = payload.mechanical || {};
+                if (mechanical.status === 'error') {
+                    console.warn('Mechanical serial command failed', mechanical);
+                }
+            } catch (error) {
+                console.warn('Could not toggle project', error);
+            } finally {
+                projectBusy = false;
+                await refreshProjectStatus();
+            }
+        }
+
         function renderLiveEvent(event) {
             if (!event || !event.uuid) {
                 return;
@@ -750,6 +850,8 @@
         updateHistoryControlsUi();
         resetPlots();
         bootstrapDashboard();
+        refreshProjectStatus();
+        setInterval(refreshProjectStatus, 3000);
 </script>
 </body>
 </html>
